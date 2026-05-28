@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>FlatTree</RootNamespace>
+    <AssemblyName>FlatTree</AssemblyName>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <PackageId>FlatTree</PackageId>
+    <Description>Zero/low-allocation Behaviour Tree library: one shared immutable tree per archetype, one compact NodeState[] per agent, 0 B per tick.</Description>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>FlatTree.Bench</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <!-- BenchmarkDotNet requires an optimized (Release) build to run. -->
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\FlatTree\FlatTree.csproj" />
+  </ItemGroup>
+</Project>

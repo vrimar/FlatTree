@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/bench/">
+    <Project Path="bench/FlatTree.Bench/FlatTree.Bench.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/FlatTree/FlatTree.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/FlatTree.Tests/FlatTree.Tests.csproj" />
+  </Folder>
+</Solution>
