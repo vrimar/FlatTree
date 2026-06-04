@@ -3,6 +3,12 @@
 A zero/low-allocation Behaviour Tree library for C# (`net10.0`), designed for game
 servers running hundreds–thousands of AI agents.
 
+## Install
+
+```sh
+dotnet add package FlatTree
+```
+
 ## Why
 
 The natural fit for AI decision-making (wandering bots, multi-phase bosses) is a
@@ -92,6 +98,18 @@ Reusable subtrees are just methods returning `BtNode<Ctx>`.
 - `src/FlatTree` — the library (no references).
 - `tests/FlatTree.Tests` — TUnit + Shouldly test suite.
 - `bench/FlatTree.Bench` — BenchmarkDotNet allocation + throughput benchmarks.
+
+## Releasing
+
+Releases are cut by pushing a `v*` tag from `main`. The
+[`release` workflow](.github/workflows/release.yml) derives the package version from
+the tag (e.g. `v0.2.0` → `0.2.0`), runs the test suite, packs, and pushes to
+nuget.org. Tags containing `-` (e.g. `v0.2.0-beta.1`) are published as prereleases.
+
+```sh
+git tag v0.2.0
+git push origin v0.2.0
+```
 
 ## License
 

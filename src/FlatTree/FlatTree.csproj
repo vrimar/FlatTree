@@ -3,8 +3,40 @@
     <RootNamespace>FlatTree</RootNamespace>
     <AssemblyName>FlatTree</AssemblyName>
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
-    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+
+    <!-- Package identity -->
     <PackageId>FlatTree</PackageId>
+    <Authors>vrimar</Authors>
+    <Company>vrimar</Company>
     <Description>Zero/low-allocation Behaviour Tree library: one shared immutable tree per archetype, one compact NodeState[] per agent, 0 B per tick.</Description>
+    <PackageTags>behaviour-tree;behavior-tree;ai;game-ai;bt;zero-allocation;gamedev</PackageTags>
+
+    <!-- Repository / project URLs -->
+    <PackageProjectUrl>https://github.com/vrimar/FlatTree</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/vrimar/FlatTree.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+
+    <!-- License & README -->
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+
+    <!-- Symbols + SourceLink -->
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+    <Deterministic>true</Deterministic>
+
+    <!-- Pack only via CI release flow (dotnet pack), not on every build. -->
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+  </ItemGroup>
 </Project>
