@@ -35,11 +35,29 @@ public sealed class RandomSequenceTests
     public void FirstTick_DrawsNonZeroSeed()
     {
         BtFactory<FakeClock> n = Bt.For<FakeClock>();
+
+        // Running children keep the activation open, so the drawn seed is observable; a completing
+        // tick clears it again for the next activation.
+        MockNode[] children = MakeChildren(6, TickResult.Running);
+        RandomSequence<FakeClock> sut = n.RandomSequence("RandomSequence", children);
+        Harness h = new Harness(n, sut);
+
+        h.StampOf(sut).ShouldBe(0L);
+        h.Tick().ShouldBe(TickResult.Running);
+        h.StampOf(sut).ShouldNotBe(0L);
+    }
+
+    [Test]
+    public void CompletingClearsTheSeedSoTheNextActivationReshuffles()
+    {
+        BtFactory<FakeClock> n = Bt.For<FakeClock>();
         MockNode[] children = MakeChildren(6, TickResult.Success);
         RandomSequence<FakeClock> sut = n.RandomSequence("RandomSequence", children);
         Harness h = new Harness(n, sut);
 
-        h.Tick();
-        h.StampOf(sut).ShouldNotBe(0L);
+        h.Tick().ShouldBe(TickResult.Success);
+
+        h.StampOf(sut).ShouldBe(0L);
+        h.CursorOf(sut).ShouldBe(0);
     }
 }

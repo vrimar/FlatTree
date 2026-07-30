@@ -34,4 +34,6 @@ public sealed class PrioritySelector<TContext> : CompositeNode<TContext>
 
         return TickResult.Failure;
     }
+
+    protected internal override bool PreemptsRunningChildren => true;
 }

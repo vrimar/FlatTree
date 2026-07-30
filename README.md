@@ -100,6 +100,23 @@ This is the easiest thing to get wrong at authoring time:
 Use a priority composite wherever a guard must be able to interrupt a running branch. Use the
 plain ones where a started branch should be allowed to finish.
 
+Because a priority composite re-ticks from child 0 every tick, a **self-re-arming leaf** (`Wait`, and
+`Do` with the scratch overload) should not be a non-final child of one. It clears its progress on
+success, so it reports Success on one tick and then restarts and reports Running on the next, which
+resets everything behind it. Anything that finishes inside that single Success tick still runs, but
+**multi-tick work behind it never accumulates the ticks it needs**. Put the tail under a `Sequence`,
+which resumes from its cursor:
+
+```csharp
+// `channel` is reset every time it gets going, so it never completes
+n.PrioritySequence("attack", n.Condition("has-target", ...), n.Wait("wind-up", ...), n.Do("channel", ...))
+
+// correct: the guard stays reactive, the timed branch is allowed to progress
+n.PrioritySequence("attack",
+    n.Condition("has-target", ...),
+    n.Sequence("swing", n.Wait("wind-up", ...), n.Do("channel", ...)))
+```
+
 ### Aborting safely
 
 `Reset` is the library's only abort notification, and it takes the context:
@@ -119,8 +136,31 @@ rendezvous — mark it and let `Build` enforce it:
 n.Uninterruptible(n.Sequence("commit", ...))
 ```
 
-`Build` throws if such a node is reachable beneath a `PrioritySelector`/`PrioritySequence`. The
-failure it prevents is silent, so it is a build-time error rather than a convention.
+`Build` throws if such a node is reachable beneath anything that tears down a running child —
+`PrioritySelector`, `PrioritySequence`, `SimpleParallel`, `TimeLimit`, or a custom node that
+overrides `PreemptsRunningChildren`. The failure it prevents is silent, so it is a build-time error
+rather than a convention.
+
+### What `Reset` clears
+
+`Reset` rewinds *traversal*, not the agent's history:
+
+| State | On `Reset` |
+|---|---|
+| cursors, started flags, `Do` scratch, `Wait`/`TimeLimit` timers | cleared — they describe the activation being abandoned |
+| `Cooldown` timer, `RateLimiter` interval | **kept** — they describe what the agent did, so preemption cannot refund them |
+
+So a preempted branch cannot dodge its cooldown by being interrupted. For an agent that should start
+with no history at all, take a fresh `NewState()` or a recycled `BehaviourTreePool` slot rather than
+calling `Reset`.
+
+With a pool, reset *before* returning a slot if a node may still hold a resource — `Rent` zeroes the
+slot's memory without running any cleanup hook:
+
+```csharp
+pool.Return(slot, ctx);   // resets (cleanup runs), then frees
+pool.Return(slot);        // frees only — for agents that hold nothing
+```
 
 ## Design constraints
 

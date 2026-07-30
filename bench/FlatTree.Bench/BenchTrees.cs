@@ -31,20 +31,25 @@ public static class BenchTrees
             n.PrioritySequence(
                 "pseq",
                 n.Condition("pseq-cond", True),
-                n.Wait("wait", TimeSpan.FromMilliseconds(250)),
-                n.SimpleParallel(
-                    "parallel",
-                    SimpleParallelPolicy.BothMustSucceed,
-                    n.AutoReset(
-                        "autoreset",
-                        n.Repeat("repeat", 3, n.Condition("repeat-cond", Periodic3))
-                    ),
-                    n.TimeLimit(
-                        "timelimit",
-                        TimeSpan.FromMilliseconds(500),
-                        n.UntilFailed(
-                            "untilfailed",
-                            n.Inverter("invert", n.Condition("invert-cond", False))
+                // Wait sits under a Sequence, not directly under the reactive parent: it re-arms on
+                // success, so re-evaluation from index 0 every tick would restart it forever.
+                n.Sequence(
+                    "gated",
+                    n.Wait("wait", TimeSpan.FromMilliseconds(250)),
+                    n.SimpleParallel(
+                        "parallel",
+                        SimpleParallelPolicy.BothMustSucceed,
+                        n.AutoReset(
+                            "autoreset",
+                            n.Repeat("repeat", 3, n.Condition("repeat-cond", Periodic3))
+                        ),
+                        n.TimeLimit(
+                            "timelimit",
+                            TimeSpan.FromMilliseconds(500),
+                            n.UntilFailed(
+                                "untilfailed",
+                                n.Inverter("invert", n.Condition("invert-cond", False))
+                            )
                         )
                     )
                 )

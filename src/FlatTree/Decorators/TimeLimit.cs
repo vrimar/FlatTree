@@ -15,8 +15,7 @@ public sealed class TimeLimit<TContext> : DecoratorNode<TContext>
     internal TimeLimit(string name, BtNode<TContext> child, TimeSpan limit)
         : base(name, child)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(limit, TimeSpan.Zero, nameof(limit));
-        _limitMs = (long)limit.TotalMilliseconds;
+        _limitMs = DurationGuard.ToMilliseconds(limit, nameof(limit));
     }
 
     /// <summary>The time limit.</summary>
@@ -52,4 +51,6 @@ public sealed class TimeLimit<TContext> : DecoratorNode<TContext>
         s[Id].Cursor &= ~StartedFlag;
         base.DoReset(s, in ctx);
     }
+
+    protected internal override bool PreemptsRunningChildren => true;
 }

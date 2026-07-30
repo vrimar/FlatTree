@@ -8,6 +8,13 @@ namespace FlatTree;
 public abstract class CompositeNode<TContext> : BtNode<TContext>
     where TContext : IClock
 {
+    /// <summary>
+    /// Upper bound on children for shuffled traversal. <see cref="TickShuffled"/> holds its
+    /// <c>stackalloc</c> permutation live across the recursive child ticks, so nesting accumulates
+    /// stack; the bound keeps that from overflowing.
+    /// </summary>
+    public const int MaxShuffledChildren = 64;
+
     /// <summary>The composite's children, in declaration order.</summary>
     public BtNode<TContext>[] Children { get; }
 
@@ -36,6 +43,22 @@ public abstract class CompositeNode<TContext> : BtNode<TContext>
         }
 
         Children = children;
+    }
+
+    /// <summary>
+    /// Enforces <see cref="MaxShuffledChildren"/>. Call from the constructor of a composite that
+    /// uses <see cref="TickShuffled"/>.
+    /// </summary>
+    protected void RequireShuffleableChildCount(string paramName)
+    {
+        if (Children.Length > MaxShuffledChildren)
+        {
+            throw new ArgumentException(
+                $"A shuffled composite supports at most {MaxShuffledChildren} children "
+                    + $"(got {Children.Length}).",
+                paramName
+            );
+        }
     }
 
     protected void ResetChildren(Span<NodeState> s, in TContext ctx)

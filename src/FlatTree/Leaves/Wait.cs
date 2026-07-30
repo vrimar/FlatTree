@@ -6,6 +6,13 @@ namespace FlatTree;
 /// <c>Cursor</c> bit 0 is the started flag; <c>Stamp</c> is the start timestamp (read only when
 /// started, per the sentinel discipline).
 /// </summary>
+/// <remarks>
+/// Because it re-arms, this leaf should not be a non-final child of a
+/// <see cref="PrioritySelector{TContext}"/>/<see cref="PrioritySequence{TContext}"/>: those
+/// re-evaluate from index 0 every tick, so it alternates Success/Running and resets the branch behind
+/// it on every restart — multi-tick work there never finishes. Put the tail under a
+/// <see cref="Sequence{TContext}"/>, which resumes from its cursor.
+/// </remarks>
 public sealed class Wait<TContext> : LeafNode<TContext>
     where TContext : IClock
 {

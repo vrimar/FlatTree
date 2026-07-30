@@ -46,4 +46,51 @@ public sealed class IntrospectionTests
         // StatusOf agrees with the raw slot by definition.
         tree.StatusOf(state, wait).ShouldBe(state[wait.Id].Status);
     }
+
+    // These used to be Debug.Assert: in Release an unbuilt node indexed s[-1] and a foreign node
+    // silently read a wrong-but-in-range slot.
+    [Test]
+    public void StatusOf_WithANodeThatWasNeverBuilt_Throws()
+    {
+        BtFactory<FakeClock> n = Bt.For<FakeClock>();
+        BehaviourTree<FakeClock> tree = n.Build(
+            n.Selector("root", n.Do("d", static (in FakeClock _) => TickResult.Success))
+        );
+        Do<FakeClock> orphan = n.Do("orphan", static (in FakeClock _) => TickResult.Success);
+
+        var error = Should.Throw<ArgumentException>(() =>
+            tree.StatusOf(tree.NewState(), orphan)
+        );
+
+        error.Message.ShouldContain("has not been built");
+    }
+
+    [Test]
+    public void StatusOf_WithANodeFromADifferentTree_Throws()
+    {
+        BtFactory<FakeClock> n = Bt.For<FakeClock>();
+        Do<FakeClock> otherLeaf = n.Do("other", static (in FakeClock _) => TickResult.Success);
+        n.Build(n.Selector("other-root", otherLeaf));
+
+        BehaviourTree<FakeClock> tree = n.Build(
+            n.Selector("root", n.Do("d", static (in FakeClock _) => TickResult.Success))
+        );
+
+        var error = Should.Throw<ArgumentException>(() =>
+            tree.StatusOf(tree.NewState(), otherLeaf)
+        );
+
+        error.Message.ShouldContain("different tree");
+    }
+
+    [Test]
+    public void StatusOf_WithANullNode_Throws()
+    {
+        BtFactory<FakeClock> n = Bt.For<FakeClock>();
+        BehaviourTree<FakeClock> tree = n.Build(
+            n.Do("d", static (in FakeClock _) => TickResult.Success)
+        );
+
+        Should.Throw<ArgumentNullException>(() => tree.StatusOf(tree.NewState(), null!));
+    }
 }

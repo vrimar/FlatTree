@@ -33,4 +33,6 @@ public sealed class PrioritySequence<TContext> : CompositeNode<TContext>
 
         return TickResult.Success;
     }
+
+    protected internal override bool PreemptsRunningChildren => true;
 }

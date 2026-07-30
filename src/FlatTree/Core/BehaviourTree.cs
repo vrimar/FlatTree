@@ -66,11 +66,14 @@ public sealed class BehaviourTree<TContext>
     /// </summary>
     public NodeStatus StatusOf(ReadOnlySpan<NodeState> s, BtNode<TContext> node)
     {
+        ArgumentNullException.ThrowIfNull(node);
         RequireStateLength(s.Length);
-        Debug.Assert(
-            (uint)node.Id < (uint)NodeCount && _nodes[node.Id] == node,
-            "node is not part of this tree."
-        );
+
+        if ((uint)node.Id >= (uint)NodeCount || _nodes[node.Id] != node)
+        {
+            ThrowNotInTree(node);
+        }
+
         return s[node.Id].Status;
     }
 
@@ -94,5 +97,14 @@ public sealed class BehaviourTree<TContext>
         throw new ArgumentException(
             $"{StateLengthMessage} (got {length}, expected {NodeCount}).",
             "s"
+        );
+
+    [DoesNotReturn]
+    private static void ThrowNotInTree(BtNode<TContext> node) =>
+        throw new ArgumentException(
+            node.Id == -1
+                ? $"Node '{node.Name}' has not been built into a tree."
+                : $"Node '{node.Name}' belongs to a different tree.",
+            nameof(node)
         );
 }

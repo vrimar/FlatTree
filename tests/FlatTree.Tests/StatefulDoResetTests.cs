@@ -76,4 +76,51 @@ public sealed class StatefulDoResetTests
         harness.CursorOf(node).ShouldBe(0);
         harness.StampOf(node).ShouldBe(0);
     }
+
+    [Test]
+    public void CompletingClearsTheScratch_SoASecondRunUnderCooldownRestarts()
+    {
+        var n = Bt.For<FakeClock>();
+        var node = n.Do("work", ThreeStep);
+        var clock = new FakeClock();
+        var harness = new Harness(
+            n,
+            n.Cooldown("cd", TimeSpan.FromMilliseconds(500), node),
+            clock
+        );
+
+        harness.Tick().ShouldBe(TickResult.Running);
+        harness.Tick().ShouldBe(TickResult.Running);
+        harness.Tick().ShouldBe(TickResult.Success);
+        harness.CursorOf(node).ShouldBe(0);
+
+        // Cooldown does not reset its child, so a leaf that kept its scratch would report Success
+        // on the first tick of the next run instead of taking three ticks again.
+        clock.Advance(500);
+
+        harness.Tick().ShouldBe(TickResult.Running);
+        harness.Tick().ShouldBe(TickResult.Running);
+        harness.Tick().ShouldBe(TickResult.Success);
+    }
+
+    [Test]
+    public void CompletingClearsTheScratch_SoUntilSuccessRestartsEachAttempt()
+    {
+        var n = Bt.For<FakeClock>();
+        var node = n.Do(
+            "flaky",
+            static (in FakeClock c, ref int cursor, ref long stamp) =>
+            {
+                cursor++;
+                return cursor >= 2 ? TickResult.Failure : TickResult.Running;
+            }
+        );
+        var harness = new Harness(n, n.UntilFailed("until", node));
+
+        harness.Tick().ShouldBe(TickResult.Running);
+        harness.CursorOf(node).ShouldBe(1);
+
+        harness.Tick().ShouldBe(TickResult.Success);
+        harness.CursorOf(node).ShouldBe(0);
+    }
 }

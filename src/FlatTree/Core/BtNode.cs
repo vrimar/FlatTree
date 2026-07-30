@@ -22,11 +22,18 @@ public abstract class BtNode<TContext>
 
     /// <summary>
     /// Marks work that must not be torn down mid-flight (irreversible or externally-visible side
-    /// effects). <see cref="BtFactory{TContext}.Build"/> rejects such a node beneath a
-    /// <see cref="PrioritySelector{TContext}"/>/<see cref="PrioritySequence{TContext}"/>, which
-    /// reset lower-priority branches without warning.
+    /// effects). <see cref="BtFactory{TContext}.Build"/> rejects such a node beneath any node that
+    /// reports <see cref="PreemptsRunningChildren"/>, since those tear a running child down without
+    /// warning.
     /// </summary>
     public bool Uninterruptible { get; protected internal set; }
+
+    /// <summary>
+    /// Whether this node can <see cref="Reset"/> a child that is still Running. Override to
+    /// <c>true</c> on a custom node that does, so <see cref="BtFactory{TContext}.Build"/> can reject
+    /// an <see cref="Uninterruptible"/> node beneath it. Resetting a *completed* child doesn't count.
+    /// </summary>
+    protected internal virtual bool PreemptsRunningChildren => false;
 
     protected BtNode(string name)
     {

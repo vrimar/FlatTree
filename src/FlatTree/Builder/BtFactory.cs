@@ -207,6 +207,8 @@ public sealed class BtFactory<TContext>
     // field per captured variable. Build-time only — never on the tick path.
     private static void RequireNoCapture(Delegate action, string paramName)
     {
+        ArgumentNullException.ThrowIfNull(action, paramName);
+
         var target = action.Target;
         if (target is null)
         {
@@ -241,14 +243,27 @@ public sealed class BtFactory<TContext>
     public BehaviourTree<TContext> Build(BtNode<TContext> root)
     {
         ArgumentNullException.ThrowIfNull(root);
+
         var nodes = new List<BtNode<TContext>>();
-        Collect(root, nodes, null);
+
+        // Reference equality, not Equals: a custom node may define value semantics, and two
+        // distinct instances that compare equal are a legal tree.
+        Collect(root, nodes, new HashSet<BtNode<TContext>>(ReferenceEqualityComparer.Instance), null);
+
+        // Assign only once the whole walk has passed validation: numbering as we descend would
+        // leave a rejected graph half-numbered and permanently unbuildable.
+        for (var i = 0; i < nodes.Count; i++)
+        {
+            nodes[i].Id = i;
+        }
+
         return new BehaviourTree<TContext>(root, nodes.ToArray());
     }
 
     private static void Collect(
         BtNode<TContext> node,
         List<BtNode<TContext>> nodes,
+        HashSet<BtNode<TContext>> seen,
         BtNode<TContext>? reactiveAncestor
     )
     {
@@ -260,17 +275,24 @@ public sealed class BtFactory<TContext>
             );
         }
 
+        if (!seen.Add(node))
+        {
+            throw new InvalidOperationException(
+                $"Node '{node.Name}' appears more than once in this tree. A node instance cannot be "
+                    + "shared; build reusable subtrees as methods that construct a fresh node each call."
+            );
+        }
+
         if (node.Uninterruptible && reactiveAncestor is not null)
         {
             throw new InvalidOperationException(
                 $"Uninterruptible node '{node.Name}' is reachable beneath "
                     + $"'{reactiveAncestor.Name}' ({reactiveAncestor.GetType().Name.Split('`')[0]}), "
-                    + "which resets lower-priority branches mid-flight. Move it out of the reactive "
-                    + "subtree, or guard the branch so it is never preempted."
+                    + "which tears down running children mid-flight. Move it out of that subtree, "
+                    + "or guard the branch so it is never preempted."
             );
         }
 
-        node.Id = nodes.Count;
         nodes.Add(node);
 
         var childReactiveAncestor =
@@ -279,10 +301,9 @@ public sealed class BtFactory<TContext>
         var childCount = node.ChildCount;
         for (var i = 0; i < childCount; i++)
         {
-            Collect(node.GetChildForBuild(i), nodes, childReactiveAncestor);
+            Collect(node.GetChildForBuild(i), nodes, seen, childReactiveAncestor);
         }
     }
 
-    private static bool IsReactive(BtNode<TContext> node) =>
-        node is PrioritySelector<TContext> or PrioritySequence<TContext>;
+    private static bool IsReactive(BtNode<TContext> node) => node.PreemptsRunningChildren;
 }

@@ -17,5 +17,9 @@ public sealed class SeededRandomProvider : IRandomProvider
 
     public double NextDouble() => _rng.NextDouble();
 
-    public int Next(int maxExclusive) => _rng.Next(maxExclusive);
+    public int Next(int maxExclusive)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxExclusive);
+        return _rng.Next(maxExclusive);
+    }
 }

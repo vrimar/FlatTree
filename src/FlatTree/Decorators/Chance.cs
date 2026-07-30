@@ -7,9 +7,16 @@ namespace FlatTree;
 /// child roughly 40% of the time, and <c>probability == 1</c> always runs it. Validated to
 /// <c>(0, 1]</c> at construction.
 /// </summary>
+/// <remarks>
+/// The roll happens once per activation, not per tick: a child that returns Running latches the gate
+/// open (<c>Cursor</c> bit 0) and is ticked to completion. Re-rolling would make a multi-tick child's
+/// odds <c>probability^ticks</c> and abandon it mid-flight on a lost roll.
+/// </remarks>
 public sealed class Chance<TContext> : DecoratorNode<TContext>
     where TContext : IClock
 {
+    private const int LatchedFlag = 1;
+
     private readonly double _probability;
     private readonly IRandomProvider _randomProvider;
 
@@ -33,13 +40,29 @@ public sealed class Chance<TContext> : DecoratorNode<TContext>
 
     protected override TickResult Update(Span<NodeState> s, in TContext ctx)
     {
-        var roll = _randomProvider.NextDouble();
+        ref var st = ref s[Id];
 
-        if (roll < _probability)
+        if ((st.Cursor & LatchedFlag) == 0 && _randomProvider.NextDouble() >= _probability)
         {
-            return Child.Tick(s, in ctx);
+            return TickResult.Failure;
         }
 
-        return TickResult.Failure;
+        var childStatus = Child.Tick(s, in ctx);
+
+        if (childStatus == TickResult.Running)
+        {
+            st.Cursor |= LatchedFlag;
+        }
+
+        return childStatus;
+    }
+
+    protected override void OnTerminate(Span<NodeState> s, TickResult status, in TContext ctx) =>
+        s[Id].Cursor &= ~LatchedFlag;
+
+    protected override void DoReset(Span<NodeState> s, in TContext ctx)
+    {
+        s[Id].Cursor &= ~LatchedFlag;
+        base.DoReset(s, in ctx);
     }
 }

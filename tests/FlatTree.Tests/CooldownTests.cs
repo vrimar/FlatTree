@@ -75,4 +75,77 @@ public sealed class CooldownTests
         child.TerminateCallCount.ShouldBe(2);
         OnCooldown(h, sut).ShouldBeTrue();
     }
+
+    [Test]
+    public void AtTheExactDuration_TheCooldownHasExpired()
+    {
+        BtFactory<FakeClock> n = Bt.For<FakeClock>();
+        MockNode child = new MockNode { ReturnStatus = TickResult.Success };
+        Cooldown<FakeClock> sut = n.Cooldown("Cooldown", TimeSpan.FromMilliseconds(1000), child);
+        FakeClock clock = new FakeClock();
+        Harness h = new Harness(n, sut, clock);
+
+        h.Tick().ShouldBe(TickResult.Success);
+
+        clock.Advance(999);
+        h.Tick().ShouldBe(TickResult.Failure);
+        child.UpdateCallCount.ShouldBe(1);
+
+        clock.Advance(1);
+        h.Tick().ShouldBe(TickResult.Success);
+        child.UpdateCallCount.ShouldBe(2);
+    }
+
+    [Test]
+    public void ExplicitResetDoesNotRefundTheCooldown()
+    {
+        BtFactory<FakeClock> n = Bt.For<FakeClock>();
+        MockNode child = new MockNode { ReturnStatus = TickResult.Success };
+        Cooldown<FakeClock> sut = n.Cooldown("Cooldown", TimeSpan.FromMilliseconds(1000), child);
+        FakeClock clock = new FakeClock();
+        Harness h = new Harness(n, sut, clock);
+
+        h.Tick().ShouldBe(TickResult.Success);
+        OnCooldown(h, sut).ShouldBeTrue();
+
+        h.ResetTree();
+
+        h.StatusOf(sut).ShouldBe(NodeStatus.Fresh);
+        OnCooldown(h, sut).ShouldBeTrue();
+
+        clock.Advance(500);
+        h.Tick().ShouldBe(TickResult.Failure);
+        child.UpdateCallCount.ShouldBe(1);
+    }
+
+    [Test]
+    public void PreemptionDoesNotRefundTheCooldown()
+    {
+        BtFactory<FakeClock> n = Bt.For<FakeClock>();
+        MockNode child = new MockNode { ReturnStatus = TickResult.Success };
+        Cooldown<FakeClock> sut = n.Cooldown("Cooldown", TimeSpan.FromMilliseconds(1000), child);
+        FakeClock clock = new FakeClock();
+        Harness h = new Harness(
+            n,
+            n.PrioritySelector(
+                "root",
+                n.Condition("guard", static (in FakeClock c) => c.NowMs is >= 100 and < 600),
+                sut
+            ),
+            clock
+        );
+
+        h.Tick().ShouldBe(TickResult.Success);
+        OnCooldown(h, sut).ShouldBeTrue();
+
+        // The guard takes over and resets the cooldown branch mid-cooldown.
+        clock.Advance(100);
+        h.Tick().ShouldBe(TickResult.Success);
+        h.StatusOf(sut).ShouldBe(NodeStatus.Fresh);
+
+        // Guard releases while the original cooldown is still running: it must still block.
+        clock.Advance(500);
+        h.Tick().ShouldBe(TickResult.Failure);
+        child.UpdateCallCount.ShouldBe(1);
+    }
 }

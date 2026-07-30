@@ -121,4 +121,6 @@ public sealed class SimpleParallel<TContext> : CompositeNode<TContext>
         s[Id].Cursor = 0;
         base.DoReset(s, in ctx);
     }
+
+    protected internal override bool PreemptsRunningChildren => true;
 }

@@ -1,6 +1,24 @@
 namespace FlatTree.Tests;
 
 /// <summary>
+/// A custom node with value semantics. Duplicate detection in <c>Build</c> must key on reference
+/// identity, or two distinct instances that compare equal are rejected as a shared instance.
+/// </summary>
+public sealed class ValueEqualityLeaf : LeafNode<FakeClock>
+{
+    private readonly string _key;
+
+    public ValueEqualityLeaf(string key)
+        : base(key) => _key = key;
+
+    protected override TickResult Update(Span<NodeState> s, in FakeClock ctx) => TickResult.Success;
+
+    public override bool Equals(object? obj) => obj is ValueEqualityLeaf other && other._key == _key;
+
+    public override int GetHashCode() => _key.GetHashCode(StringComparison.Ordinal);
+}
+
+/// <summary>
 /// A user-defined composite living in a DIFFERENT assembly than FlatTree. It exists to prove
 /// F8: the builder-traversal hooks are <c>protected internal</c>, so an external composite's
 /// children participate in <c>Build</c> (get ids) and tick correctly.
@@ -74,5 +92,35 @@ public sealed class CustomNodeExtensionTests
         var tree = n.Build(root);
 
         tree.Tick(tree.NewState(), new FakeClock()).ShouldBe(TickResult.Failure);
+    }
+
+    [Test]
+    public void CustomNodesWithValueEquality_AreDistinguishedByReference()
+    {
+        var n = Bt.For<FakeClock>();
+        var a = new ValueEqualityLeaf("same");
+        var b = new ValueEqualityLeaf("same");
+
+        a.Equals(b).ShouldBeTrue();
+        ReferenceEquals(a, b).ShouldBeFalse();
+
+        var tree = n.Build(n.Sequence("root", a, b));
+
+        tree.NodeCount.ShouldBe(3);
+        a.Id.ShouldNotBe(b.Id);
+        tree.Tick(tree.NewState(), new FakeClock()).ShouldBe(TickResult.Success);
+    }
+
+    [Test]
+    public void ATrulySharedInstanceIsStillRejected()
+    {
+        var n = Bt.For<FakeClock>();
+        var shared = new ValueEqualityLeaf("shared");
+
+        var error = Should.Throw<InvalidOperationException>(() =>
+            n.Build(n.Sequence("root", shared, shared))
+        );
+
+        error.Message.ShouldContain("appears more than once");
     }
 }

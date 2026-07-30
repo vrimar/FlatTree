@@ -45,9 +45,15 @@ public sealed class ApiErgonomicsTests
         var h = new Harness(n, sut);
 
         h.Tick().ShouldBe(TickResult.Running);
+        h.CursorOf(sut).ShouldBe(1);
         h.Tick().ShouldBe(TickResult.Running);
+        h.CursorOf(sut).ShouldBe(2);
+
         h.Tick().ShouldBe(TickResult.Success);
-        h.CursorOf(sut).ShouldBe(3);
+
+        // Completing re-arms the leaf, so the next run starts over rather than resuming at 3.
+        h.CursorOf(sut).ShouldBe(0);
+        h.Tick().ShouldBe(TickResult.Running);
     }
 
     [Test]
@@ -65,7 +71,7 @@ public sealed class ApiErgonomicsTests
                     stamp = c.NowMs;
                 }
 
-                return TickResult.Success;
+                return TickResult.Running;
             }
         );
         var h = new Harness(n, sut, clock);

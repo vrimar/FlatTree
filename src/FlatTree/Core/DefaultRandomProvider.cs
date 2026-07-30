@@ -10,5 +10,10 @@ public sealed class DefaultRandomProvider : IRandomProvider
 
     public double NextDouble() => Random.Shared.NextDouble();
 
-    public int Next(int maxExclusive) => Random.Shared.Next(maxExclusive);
+    public int Next(int maxExclusive)
+    {
+        // Random.Shared.Next(0) returns 0, which is outside the documented [0, maxExclusive).
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxExclusive);
+        return Random.Shared.Next(maxExclusive);
+    }
 }

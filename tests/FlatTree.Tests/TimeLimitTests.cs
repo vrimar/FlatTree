@@ -62,4 +62,27 @@ public sealed class TimeLimitTests
 
         h.Tick().ShouldBe(TickResult.Running);
     }
+
+    [Test]
+    public void AtTheExactLimit_TheNodeHasExpired()
+    {
+        BtFactory<FakeClock> n = Bt.For<FakeClock>();
+        MockNode child = new MockNode { ReturnStatus = TickResult.Running };
+        FakeClock clock = new FakeClock();
+        Harness h = new Harness(
+            n,
+            n.TimeLimit("TimeLimit", TimeSpan.FromMilliseconds(1000), child),
+            clock
+        );
+
+        h.Tick().ShouldBe(TickResult.Running);
+
+        clock.Advance(999);
+        h.Tick().ShouldBe(TickResult.Running);
+        child.UpdateCallCount.ShouldBe(2);
+
+        clock.Advance(1);
+        h.Tick().ShouldBe(TickResult.Failure);
+        child.UpdateCallCount.ShouldBe(2);
+    }
 }

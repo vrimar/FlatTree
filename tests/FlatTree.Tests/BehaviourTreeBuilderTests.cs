@@ -52,6 +52,44 @@ public sealed class BehaviourTreeBuilderTests
     }
 
     [Test]
+    public void Build_WhenANodeIsAlreadyInAnotherTree_Throws()
+    {
+        BtFactory<FakeClock> n = Bt.For<FakeClock>();
+        Do<FakeClock> leaf = n.Do("leaf", static (in FakeClock _) => TickResult.Success);
+        n.Build(n.Selector("first", leaf));
+
+        var error = Should.Throw<InvalidOperationException>(() =>
+            n.Build(n.Selector("second", leaf))
+        );
+
+        error.Message.ShouldContain("already part of a tree");
+    }
+
+    [Test]
+    public void Build_WhenItThrows_LeavesTheGraphUnnumberedSoItCanBeBuiltAgain()
+    {
+        BtFactory<FakeClock> n = Bt.For<FakeClock>();
+        Do<FakeClock> commit = n.Uninterruptible(
+            n.Do("commit", static (in FakeClock _) => TickResult.Success)
+        );
+        Sequence<FakeClock> branch = n.Sequence("branch", commit);
+
+        // Rejected: an Uninterruptible node beneath a reactive parent.
+        Should.Throw<InvalidOperationException>(() =>
+            n.Build(n.PrioritySelector("reactive", branch))
+        );
+
+        branch.Id.ShouldBe(-1);
+        commit.Id.ShouldBe(-1);
+
+        // The same nodes must still be usable once the offending structure is corrected.
+        BehaviourTree<FakeClock> tree = n.Build(n.Selector("plain", branch));
+
+        tree.NodeCount.ShouldBe(3);
+        commit.Id.ShouldBe(2);
+    }
+
+    [Test]
     public void NewState_StartsAllSlotsFresh()
     {
         BtFactory<FakeClock> n = Bt.For<FakeClock>();

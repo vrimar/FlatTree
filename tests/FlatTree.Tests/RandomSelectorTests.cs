@@ -21,12 +21,15 @@ public sealed class RandomSelectorTests
     public void FirstTick_DrawsNonZeroSeed()
     {
         BtFactory<FakeClock> n = Bt.For<FakeClock>();
-        MockNode[] children = MakeChildren(6, TickResult.Failure);
+
+        // Running children keep the activation open, so the drawn seed is observable; a completing
+        // tick clears it again for the next activation.
+        MockNode[] children = MakeChildren(6, TickResult.Running);
         RandomSelector<FakeClock> sut = n.RandomSelector("RandomSelector", children);
         Harness h = new Harness(n, sut);
 
         h.StampOf(sut).ShouldBe(0L);
-        h.Tick();
+        h.Tick().ShouldBe(TickResult.Running);
         h.StampOf(sut).ShouldNotBe(0L);
     }
 
@@ -48,7 +51,7 @@ public sealed class RandomSelectorTests
     }
 
     [Test]
-    public void OnReset_DrawsANewSeed()
+    public void OnReset_ClearsTheSeedSoTheNextActivationDrawsANewOne()
     {
         ScriptedRandomProvider rng = new ScriptedRandomProvider();
         rng.EnqueueNext(1, 2, 3, 4);
@@ -59,19 +62,44 @@ public sealed class RandomSelectorTests
 
         h.Tick();
         long firstSeed = h.StampOf(sut);
+        firstSeed.ShouldNotBe(0L);
 
-        // Force a terminal result so the node resets and re-seeds.
+        // Force a terminal result so the node resets.
         foreach (MockNode child in children)
         {
             child.ReturnStatus = TickResult.Failure;
         }
 
         h.Tick().ShouldBe(TickResult.Failure);
+        h.StampOf(sut).ShouldBe(0L);
+
+        foreach (MockNode child in children)
+        {
+            child.ReturnStatus = TickResult.Running;
+        }
+
+        h.Tick();
         long secondSeed = h.StampOf(sut);
 
-        firstSeed.ShouldNotBe(0L);
         secondSeed.ShouldNotBe(0L);
         secondSeed.ShouldNotBe(firstSeed);
+    }
+
+    [Test]
+    public void DoResetIsIdempotent_SoCompletingDrawsExactlyOneSeed()
+    {
+        CountingRandomProvider rng = new CountingRandomProvider();
+        BtFactory<FakeClock> n = Bt.For<FakeClock>(rng);
+        MockNode[] children = MakeChildren(3, TickResult.Failure);
+        RandomSelector<FakeClock> sut = n.RandomSelector("RandomSelector", children);
+
+        // Under a composite parent, so the parent's terminal reset cascade also reaches sut.
+        Harness h = new Harness(n, n.Sequence("root", sut));
+
+        h.Tick().ShouldBe(TickResult.Failure);
+
+        // One activation => one seed => two Next() calls, however many times DoReset runs.
+        rng.NextCallCount.ShouldBe(2);
     }
 
     [Test]

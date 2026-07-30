@@ -6,6 +6,11 @@ namespace FlatTree;
 /// <c>Cursor</c> bit 0 is the on-cooldown flag; <c>Stamp</c> is the cooldown-start timestamp
 /// (read only when the flag is set, per the sentinel discipline).
 /// </summary>
+/// <remarks>
+/// <see cref="BtNode{TContext}.Reset"/> deliberately does NOT clear the cooldown: the timer records
+/// what the agent did, not where it is in the tree, so preempting the branch must not refund it. For
+/// an agent with no history, use <see cref="BehaviourTree{TContext}.NewState"/> or a recycled pool slot.
+/// </remarks>
 public sealed class Cooldown<TContext> : DecoratorNode<TContext>
     where TContext : IClock
 {
@@ -16,12 +21,7 @@ public sealed class Cooldown<TContext> : DecoratorNode<TContext>
     internal Cooldown(string name, BtNode<TContext> child, TimeSpan duration)
         : base(name, child)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(
-            duration,
-            TimeSpan.Zero,
-            nameof(duration)
-        );
-        _durationMs = (long)duration.TotalMilliseconds;
+        _durationMs = DurationGuard.ToMilliseconds(duration, nameof(duration));
     }
 
     /// <summary>The cooldown duration.</summary>
@@ -30,12 +30,11 @@ public sealed class Cooldown<TContext> : DecoratorNode<TContext>
     protected override TickResult Update(Span<NodeState> s, in TContext ctx)
     {
         ref var st = ref s[Id];
+        var now = ctx.NowMs;
 
         if ((st.Cursor & OnCooldownFlag) != 0)
         {
-            var elapsed = ctx.NowMs - st.Stamp;
-
-            if (elapsed < _durationMs)
+            if ((now - st.Stamp) < _durationMs)
             {
                 return TickResult.Failure;
             }
@@ -50,7 +49,7 @@ public sealed class Cooldown<TContext> : DecoratorNode<TContext>
         if (childStatus == TickResult.Success)
         {
             st.Cursor |= OnCooldownFlag;
-            st.Stamp = ctx.NowMs;
+            st.Stamp = now;
         }
 
         return childStatus;

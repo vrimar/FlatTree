@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace FlatTree;
 
 /// <summary>
@@ -14,11 +16,8 @@ public sealed class BehaviourTreePool<TContext>
     private readonly NodeState[] _buffer;
     private readonly int _nodeCount;
     private readonly Stack<int> _free;
-    private int _highWater;
-
-#if DEBUG
     private readonly bool[] _rented;
-#endif
+    private int _highWater;
 
     /// <summary>The maximum number of agents the pool can hold simultaneously.</summary>
     public int Capacity { get; }
@@ -40,9 +39,7 @@ public sealed class BehaviourTreePool<TContext>
         Capacity = capacity;
         _buffer = new NodeState[capacity * _nodeCount];
         _free = new Stack<int>(capacity);
-#if DEBUG
         _rented = new bool[capacity];
-#endif
     }
 
     /// <summary>
@@ -70,9 +67,8 @@ public sealed class BehaviourTreePool<TContext>
             );
         }
 
-#if DEBUG
         _rented[slot] = true;
-#endif
+
         if (recycled)
         {
             Slice(slot).Clear();
@@ -82,16 +78,29 @@ public sealed class BehaviourTreePool<TContext>
         return slot;
     }
 
-    /// <summary>Releases a rented slot back to the pool for reuse.</summary>
+    /// <summary>
+    /// Releases a rented slot back to the pool for reuse. The slot's state is zeroed on the next
+    /// <see cref="Rent"/>, which does NOT run node cleanup — call
+    /// <see cref="Return(int, in TContext)"/> instead when a node in the slot may still hold a
+    /// resource.
+    /// </summary>
     public void Return(int slot)
     {
-        Debug.Assert((uint)slot < (uint)Capacity, "slot out of range.");
-#if DEBUG
-        Debug.Assert(_rented[slot], "slot is not currently rented (double Return?).");
+        RequireRented(slot);
+
         _rented[slot] = false;
-#endif
         _free.Push(slot);
         Count--;
+    }
+
+    /// <summary>
+    /// Resets the agent in <paramref name="slot"/> — giving every non-fresh node a chance to release
+    /// what it acquired — then releases the slot.
+    /// </summary>
+    public void Return(int slot, in TContext ctx)
+    {
+        _tree.Reset(Slice(slot), in ctx);
+        Return(slot);
     }
 
     /// <summary>Ticks the agent in <paramref name="slot"/>. Zero allocation.</summary>
@@ -104,12 +113,33 @@ public sealed class BehaviourTreePool<TContext>
     public NodeStatus StatusOf(int slot, BtNode<TContext> node) =>
         _tree.StatusOf((ReadOnlySpan<NodeState>)Slice(slot), node);
 
+    private void RequireRented(int slot)
+    {
+        // Bound against _rented.Length (== Capacity) so the JIT can drop the element bounds check.
+        var rented = _rented;
+
+        if ((uint)slot >= (uint)rented.Length || !rented[slot])
+        {
+            ThrowInvalidSlot(slot);
+        }
+    }
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void ThrowInvalidSlot(int slot)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(slot);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(slot, Capacity);
+
+        throw new InvalidOperationException(
+            $"Slot {slot} is not currently rented (double Return, or use after Return). "
+                + "Serving it again would give two agents the same state."
+        );
+    }
+
     private Span<NodeState> Slice(int slot)
     {
-        Debug.Assert((uint)slot < (uint)Capacity, "slot out of range.");
-#if DEBUG
-        Debug.Assert(_rented[slot], "slot is not currently rented (use-after-Return?).");
-#endif
+        RequireRented(slot);
         return _buffer.AsSpan(slot * _nodeCount, _nodeCount);
     }
 }

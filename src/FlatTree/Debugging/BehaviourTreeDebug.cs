@@ -44,9 +44,26 @@ public static class BehaviourTreeDebug
         where TContext : IClock
     {
         ArgumentNullException.ThrowIfNull(tree);
+        RequireStateLength(tree, state);
         var sb = new StringBuilder();
         AppendNode(sb, tree.Root, state, 0);
         return sb.ToString();
+    }
+
+    private static void RequireStateLength<TContext>(
+        BehaviourTree<TContext> tree,
+        ReadOnlySpan<NodeState> state
+    )
+        where TContext : IClock
+    {
+        if (!state.IsEmpty && state.Length != tree.NodeCount)
+        {
+            throw new ArgumentException(
+                $"State array length must equal NodeCount (got {state.Length}, "
+                    + $"expected {tree.NodeCount}).",
+                nameof(state)
+            );
+        }
     }
 
     private static void AppendNode<TContext>(
@@ -98,6 +115,7 @@ public static class BehaviourTreeDebug
         where TContext : IClock
     {
         ArgumentNullException.ThrowIfNull(tree);
+        RequireStateLength(tree, state);
         var sb = new StringBuilder();
         sb.Append("digraph BehaviourTree {\n");
         sb.Append("  node [shape=box, fontname=\"monospace\"];\n");
@@ -154,5 +172,10 @@ public static class BehaviourTreeDebug
             _ => "lightgray",
         };
 
-    private static string Escape(string value) => value.Replace("\\", "\\\\").Replace("\"", "\\\"");
+    private static string Escape(string value) =>
+        value
+            .Replace("\\", "\\\\")
+            .Replace("\"", "\\\"")
+            .Replace("\r", "\\r")
+            .Replace("\n", "\\n");
 }

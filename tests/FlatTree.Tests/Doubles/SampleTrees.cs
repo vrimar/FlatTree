@@ -35,20 +35,25 @@ public static class SampleTrees
             n.PrioritySequence(
                 "pseq",
                 n.Condition("pseq-cond", TruePredicate),
-                n.Wait("wait", TimeSpan.FromMilliseconds(250)),
-                n.SimpleParallel(
-                    "parallel",
-                    SimpleParallelPolicy.BothMustSucceed,
-                    n.AutoReset(
-                        "autoreset",
-                        n.Repeat("repeat", 3, n.Condition("repeat-cond", PeriodicPredicate))
-                    ),
-                    n.TimeLimit(
-                        "timelimit",
-                        TimeSpan.FromMilliseconds(500),
-                        n.UntilFailed(
-                            "untilfailed",
-                            n.Inverter("invert", n.Condition("invert-cond", FalsePredicate))
+                // Wait sits under a Sequence, not directly under the reactive parent: it re-arms on
+                // success, so re-evaluation from index 0 every tick would restart it forever.
+                n.Sequence(
+                    "gated",
+                    n.Wait("wait", TimeSpan.FromMilliseconds(250)),
+                    n.SimpleParallel(
+                        "parallel",
+                        SimpleParallelPolicy.BothMustSucceed,
+                        n.AutoReset(
+                            "autoreset",
+                            n.Repeat("repeat", 3, n.Condition("repeat-cond", PeriodicPredicate))
+                        ),
+                        n.TimeLimit(
+                            "timelimit",
+                            TimeSpan.FromMilliseconds(500),
+                            n.UntilFailed(
+                                "untilfailed",
+                                n.Inverter("invert", n.Condition("invert-cond", FalsePredicate))
+                            )
                         )
                     )
                 )
@@ -79,7 +84,7 @@ public static class SampleTrees
             )
         );
 
-        nodeCount = 32;
+        nodeCount = 33;
         return n.Build(root);
     }
 }

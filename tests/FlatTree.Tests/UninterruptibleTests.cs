@@ -133,4 +133,86 @@ public sealed class UninterruptibleTests
 
         harness.Tick().ShouldBe(TickResult.Success);
     }
+
+    [Test]
+    public void RejectsAnUninterruptibleNodeUnderSimpleParallel()
+    {
+        var n = Bt.For<FakeClock>();
+
+        var error = Should.Throw<InvalidOperationException>(() =>
+            n.Build(
+                n.SimpleParallel(
+                    "parallel",
+                    SimpleParallelPolicy.BothMustSucceed,
+                    n.Do("other", Succeed),
+                    n.Uninterruptible(n.Do("commit", Succeed))
+                )
+            )
+        );
+
+        error.Message.ShouldContain("commit");
+        error.Message.ShouldContain("parallel");
+    }
+
+    [Test]
+    public void RejectsAnUninterruptibleNodeUnderTimeLimit()
+    {
+        var n = Bt.For<FakeClock>();
+
+        var error = Should.Throw<InvalidOperationException>(() =>
+            n.Build(
+                n.TimeLimit(
+                    "deadline",
+                    TimeSpan.FromMilliseconds(500),
+                    n.Uninterruptible(n.Do("commit", Succeed))
+                )
+            )
+        );
+
+        error.Message.ShouldContain("commit");
+        error.Message.ShouldContain("deadline");
+    }
+
+    [Test]
+    public void HonoursACustomNodeThatOptsIntoPreemptingRunningChildren()
+    {
+        var n = Bt.For<FakeClock>();
+
+        var error = Should.Throw<InvalidOperationException>(() =>
+            n.Build(new PreemptingDecorator(n.Uninterruptible(n.Do("commit", Succeed))))
+        );
+
+        error.Message.ShouldContain("commit");
+        error.Message.ShouldContain("preempting");
+    }
+
+    [Test]
+    public void ACustomNodeThatDoesNotPreempt_IsNotTreatedAsReactive()
+    {
+        var n = Bt.For<FakeClock>();
+
+        Should.NotThrow(() =>
+            n.Build(new PassthroughDecorator(n.Uninterruptible(n.Do("commit", Succeed))))
+        );
+    }
+
+    private sealed class PreemptingDecorator : DecoratorNode<FakeClock>
+    {
+        public PreemptingDecorator(BtNode<FakeClock> child)
+            : base("preempting", child) { }
+
+        protected override TickResult Update(Span<NodeState> s, in FakeClock ctx) =>
+            Child.Tick(s, in ctx);
+
+        protected override bool PreemptsRunningChildren => true;
+    }
+
+    private sealed class PassthroughDecorator : DecoratorNode<FakeClock>
+    {
+        public PassthroughDecorator(BtNode<FakeClock> child)
+            : base("passthrough", child) { }
+
+        protected override TickResult Update(Span<NodeState> s, in FakeClock ctx) =>
+            Child.Tick(s, in ctx);
+    }
 }

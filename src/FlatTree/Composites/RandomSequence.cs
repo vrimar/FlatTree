@@ -17,17 +17,20 @@ public sealed class RandomSequence<TContext> : CompositeNode<TContext>
     )
         : base(name, children)
     {
+        RequireShuffleableChildCount(nameof(children));
         _randomProvider = randomProvider;
     }
 
     protected override TickResult Update(Span<NodeState> s, in TContext ctx) =>
         TickShuffled(s, in ctx, TickResult.Success, _randomProvider);
 
+    // Clearing rather than re-drawing keeps this idempotent: a composite keeps its terminal status,
+    // so an ancestor's reset cascade runs DoReset a second time.
     protected override void DoReset(Span<NodeState> s, in TContext ctx)
     {
         ref var st = ref s[Id];
         st.Cursor = 0;
-        st.Stamp = DeterministicRng.DrawNonZeroSeed(_randomProvider);
+        st.Stamp = 0;
         base.DoReset(s, in ctx);
     }
 }
