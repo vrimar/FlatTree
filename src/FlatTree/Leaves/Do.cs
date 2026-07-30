@@ -13,9 +13,9 @@ namespace FlatTree;
 public sealed class Do<TContext> : LeafNode<TContext>
     where TContext : IClock
 {
-    private readonly Func<TContext, TickResult> _action;
+    private readonly LeafAction<TContext> _action;
 
-    internal Do(string name, Func<TContext, TickResult> action)
+    internal Do(string name, LeafAction<TContext> action)
         : base(name)
     {
         ArgumentNullException.ThrowIfNull(action);
@@ -24,6 +24,6 @@ public sealed class Do<TContext> : LeafNode<TContext>
 
     protected override TickResult Update(Span<NodeState> s, in TContext ctx)
     {
-        return _action(ctx);
+        return _action(in ctx);
     }
 }

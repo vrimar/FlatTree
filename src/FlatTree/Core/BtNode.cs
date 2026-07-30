@@ -20,6 +20,14 @@ public abstract class BtNode<TContext>
     /// <summary>Human-readable name, for debugging/inspection only.</summary>
     public string Name { get; }
 
+    /// <summary>
+    /// Marks work that must not be torn down mid-flight (irreversible or externally-visible side
+    /// effects). <see cref="BtFactory{TContext}.Build"/> rejects such a node beneath a
+    /// <see cref="PrioritySelector{TContext}"/>/<see cref="PrioritySequence{TContext}"/>, which
+    /// reset lower-priority branches without warning.
+    /// </summary>
+    public bool Uninterruptible { get; protected internal set; }
+
     protected BtNode(string name)
     {
         Name = name;
@@ -39,7 +47,7 @@ public abstract class BtNode<TContext>
 
         if (status != TickResult.Running)
         {
-            OnTerminate(s, status);
+            OnTerminate(s, status, in ctx);
         }
 
         return status;
@@ -50,14 +58,18 @@ public abstract class BtNode<TContext>
     /// <see cref="NodeStatus.Fresh"/>. A node that is already Fresh is assumed to have Fresh
     /// children and short-circuits.
     /// </summary>
-    public void Reset(Span<NodeState> s)
+    /// <remarks>
+    /// The library's only abort notification: <see cref="DoReset"/> receives
+    /// <paramref name="ctx"/> so a preempted node can release what it acquired.
+    /// </remarks>
+    public void Reset(Span<NodeState> s, in TContext ctx)
     {
         if (s[Id].Status == NodeStatus.Fresh)
         {
             return;
         }
 
-        DoReset(s);
+        DoReset(s, in ctx);
         s[Id].Status = NodeStatus.Fresh;
     }
 
@@ -68,10 +80,13 @@ public abstract class BtNode<TContext>
     protected abstract TickResult Update(Span<NodeState> s, in TContext ctx);
 
     /// <summary>Fires after <see cref="Update"/> when the node completes. May reset children.</summary>
-    protected virtual void OnTerminate(Span<NodeState> s, TickResult status) { }
+    protected virtual void OnTerminate(Span<NodeState> s, TickResult status, in TContext ctx) { }
 
-    /// <summary>Performs reset side effects (e.g. recursive child reset). May read <c>s[Id]</c>.</summary>
-    protected virtual void DoReset(Span<NodeState> s) { }
+    /// <summary>
+    /// Performs reset side effects (recursive child reset, releasing what the node acquired).
+    /// May read <c>s[Id]</c>, which still holds the pre-reset status.
+    /// </summary>
+    protected virtual void DoReset(Span<NodeState> s, in TContext ctx) { }
 
     // --- builder traversal (DFS pre-order Id assignment) ---
     // protected internal so external assemblies can author custom composites/decorators

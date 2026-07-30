@@ -38,7 +38,7 @@ public sealed class MultiAgentIsolationTests
         BtFactory<FakeClock> n = Bt.For<FakeClock>();
         Wait<FakeClock> wait = n.Wait("w", TimeSpan.FromMilliseconds(1000));
         BehaviourTree<FakeClock> tree = n.Build(
-            n.Sequence("seq", wait, n.Do("d", static _ => TickResult.Success))
+            n.Sequence("seq", wait, n.Do("d", static (in FakeClock _) => TickResult.Success))
         );
 
         NodeState[] a = tree.NewState();
@@ -50,7 +50,7 @@ public sealed class MultiAgentIsolationTests
         tree.Tick(b, clock).ShouldBe(TickResult.Running);
 
         // Reset only agent A.
-        tree.Reset(a);
+        tree.Reset(a, clock);
         a.ShouldAllBe(slot => slot.Status == NodeStatus.Fresh);
 
         clock.Advance(2000);
@@ -68,9 +68,9 @@ public sealed class MultiAgentIsolationTests
         // Selector resumes from the running child; the resume cursor is per-agent.
         Selector<FakeClock> root = n.Selector(
             "sel",
-            n.Do("a", static _ => TickResult.Failure),
+            n.Do("a", static (in FakeClock _) => TickResult.Failure),
             n.Wait("hold", TimeSpan.FromMilliseconds(1000)),
-            n.Do("c", static _ => TickResult.Success)
+            n.Do("c", static (in FakeClock _) => TickResult.Success)
         );
         BehaviourTree<FakeClock> tree = n.Build(root);
 

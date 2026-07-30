@@ -3,18 +3,18 @@ namespace FlatTree.Bench;
 /// <summary>Representative trees for benchmarking. Leaf delegates are static (capture nothing).</summary>
 public static class BenchTrees
 {
-    private static TickResult Succeed(BenchContext c) => TickResult.Success;
+    private static TickResult Succeed(in BenchContext c) => TickResult.Success;
 
-    private static TickResult Run(BenchContext c) => TickResult.Running;
+    private static TickResult Run(in BenchContext c) => TickResult.Running;
 
-    private static TickResult Periodic(BenchContext c) =>
+    private static TickResult Periodic(in BenchContext c) =>
         (c.NowMs / 100) % 2 == 0 ? TickResult.Success : TickResult.Running;
 
-    private static bool True(BenchContext c) => true;
+    private static bool True(in BenchContext c) => true;
 
-    private static bool False(BenchContext c) => false;
+    private static bool False(in BenchContext c) => false;
 
-    private static bool Periodic3(BenchContext c) => (c.NowMs / 100) % 3 == 0;
+    private static bool Periodic3(in BenchContext c) => (c.NowMs / 100) % 3 == 0;
 
     /// <summary>A tree containing every node type, for the allocation benchmark.</summary>
     public static BehaviourTree<BenchContext> EveryNodeType()
@@ -65,6 +65,68 @@ public static class BenchTrees
             ),
             n.RandomSelector("randsel", n.Do("rs-do-1", Run), n.Do("rs-do-2", Succeed)),
             n.RandomSequence("randseq", n.Do("rq-do-1", Succeed), n.Do("rq-do-2", Succeed))
+        );
+
+        return n.Build(root);
+    }
+
+    /// <summary>
+    /// The consumer-shaped tree: a reactive <c>PrioritySelector</c> root over 3 branches, ~25
+    /// nodes, with several leaves parked in Running so every tick re-evaluates the guards, resumes
+    /// running subtrees, and drives the reset cascade when a branch is preempted.
+    /// </summary>
+    public static BehaviourTree<BenchContext> DeepReactive()
+    {
+        var n = Bt.For<BenchContext>();
+
+        var root = n.PrioritySelector(
+            "root",
+            n.Sequence(
+                "emergency",
+                n.Condition("threatened", Periodic3),
+                n.Cooldown(
+                    "evade-cd",
+                    TimeSpan.FromMilliseconds(400),
+                    n.Sequence(
+                        "evade",
+                        n.Do("pick-exit", Succeed),
+                        n.Do("run", Run),
+                        n.Do("regroup", Succeed)
+                    )
+                )
+            ),
+            n.Sequence(
+                "engage",
+                n.Condition("has-target", True),
+                n.SimpleParallel(
+                    "strafe-and-fire",
+                    SimpleParallelPolicy.BothMustSucceed,
+                    n.Sequence("strafe", n.Wait("reposition", TimeSpan.FromMilliseconds(300))),
+                    n.Sequence(
+                        "fire",
+                        n.RateLimiter(
+                            "burst-limit",
+                            TimeSpan.FromMilliseconds(150),
+                            n.Do("shoot", Periodic)
+                        ),
+                        n.Do("track", Run)
+                    )
+                ),
+                n.Do("settle", Succeed)
+            ),
+            n.Sequence(
+                "patrol",
+                n.Condition("route-known", True),
+                n.Forever(
+                    "patrol-loop",
+                    n.Sequence(
+                        "leg",
+                        n.Do("advance", Run),
+                        n.Wait("dwell", TimeSpan.FromMilliseconds(200)),
+                        n.Do("scan", Succeed)
+                    )
+                )
+            )
         );
 
         return n.Build(root);

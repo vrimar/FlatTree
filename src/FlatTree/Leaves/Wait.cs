@@ -1,7 +1,7 @@
 namespace FlatTree;
 
 /// <summary>
-/// Leaf that returns Running until <paramref name="duration"/> of logical time has elapsed
+/// Leaf that returns Running until <c>duration</c> of logical time has elapsed
 /// since it started, then Success. Auto re-arms after success (so it can be used again).
 /// <c>Cursor</c> bit 0 is the started flag; <c>Stamp</c> is the start timestamp (read only when
 /// started, per the sentinel discipline).
@@ -37,12 +37,12 @@ public sealed class Wait<TContext> : LeafNode<TContext>
         return (now - st.Stamp) >= _durationMs ? TickResult.Success : TickResult.Running;
     }
 
-    protected override void OnTerminate(Span<NodeState> s, TickResult status)
+    protected override void OnTerminate(Span<NodeState> s, TickResult status, in TContext ctx)
     {
         s[Id].Cursor &= ~StartedFlag;
     }
 
-    protected override void DoReset(Span<NodeState> s)
+    protected override void DoReset(Span<NodeState> s, in TContext ctx)
     {
         s[Id].Cursor &= ~StartedFlag;
     }

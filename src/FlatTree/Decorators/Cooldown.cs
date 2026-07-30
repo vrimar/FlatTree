@@ -2,7 +2,7 @@ namespace FlatTree;
 
 /// <summary>
 /// After the child succeeds, blocks (returns Failure without ticking the child) for
-/// <paramref name="duration"/> of logical time. The cooldown starts ONLY on child success.
+/// <c>duration</c> of logical time. The cooldown starts ONLY on child success.
 /// <c>Cursor</c> bit 0 is the on-cooldown flag; <c>Stamp</c> is the cooldown-start timestamp
 /// (read only when the flag is set, per the sentinel discipline).
 /// </summary>

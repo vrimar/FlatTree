@@ -22,7 +22,7 @@ public sealed class UntilSuccess<TContext> : DecoratorNode<TContext>
 
         if (childStatus == TickResult.Failure)
         {
-            Child.Reset(s);
+            Child.Reset(s, in ctx);
         }
 
         return TickResult.Running;

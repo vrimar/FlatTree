@@ -6,7 +6,7 @@ public sealed class DoTests
     public void ReturnsSuccess()
     {
         var n = Bt.For<FakeClock>();
-        var h = new Harness(n, n.Do("Do", static _ => TickResult.Success));
+        var h = new Harness(n, n.Do("Do", static (in FakeClock _) => TickResult.Success));
 
         h.Tick().ShouldBe(TickResult.Success);
     }
@@ -15,7 +15,7 @@ public sealed class DoTests
     public void ReturnsFailure()
     {
         var n = Bt.For<FakeClock>();
-        var h = new Harness(n, n.Do("Do", static _ => TickResult.Failure));
+        var h = new Harness(n, n.Do("Do", static (in FakeClock _) => TickResult.Failure));
 
         h.Tick().ShouldBe(TickResult.Failure);
     }
@@ -24,7 +24,7 @@ public sealed class DoTests
     public void ReturnsRunning()
     {
         var n = Bt.For<FakeClock>();
-        var h = new Harness(n, n.Do("Do", static _ => TickResult.Running));
+        var h = new Harness(n, n.Do("Do", static (in FakeClock _) => TickResult.Running));
 
         h.Tick().ShouldBe(TickResult.Running);
     }
@@ -36,7 +36,7 @@ public sealed class DoTests
         FakeClock clock = new FakeClock();
         Harness h = new Harness(
             n,
-            n.Do("Do", static c => c.NowMs >= 1000 ? TickResult.Success : TickResult.Failure),
+            n.Do("Do", static (in FakeClock c) => c.NowMs >= 1000 ? TickResult.Success : TickResult.Failure),
             clock
         );
 

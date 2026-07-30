@@ -15,8 +15,8 @@ public sealed class AutoReset<TContext> : DecoratorNode<TContext>
         return Child.Tick(s, in ctx);
     }
 
-    protected override void OnTerminate(Span<NodeState> s, TickResult status)
+    protected override void OnTerminate(Span<NodeState> s, TickResult status, in TContext ctx)
     {
-        Child.Reset(s);
+        Child.Reset(s, in ctx);
     }
 }

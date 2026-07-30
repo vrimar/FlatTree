@@ -6,10 +6,10 @@ public sealed class IntrospectionTests
     public void Nodes_AreIndexedById_AndCountMatchesNodeCount()
     {
         BtFactory<FakeClock> n = Bt.For<FakeClock>();
-        Do<FakeClock> a0 = n.Do("a0", static _ => TickResult.Success);
-        Do<FakeClock> a1 = n.Do("a1", static _ => TickResult.Success);
+        Do<FakeClock> a0 = n.Do("a0", static (in FakeClock _) => TickResult.Success);
+        Do<FakeClock> a1 = n.Do("a1", static (in FakeClock _) => TickResult.Success);
         Sequence<FakeClock> seq = n.Sequence("seq", a0, a1);
-        Do<FakeClock> b0 = n.Do("b0", static _ => TickResult.Success);
+        Do<FakeClock> b0 = n.Do("b0", static (in FakeClock _) => TickResult.Success);
         Selector<FakeClock> root = n.Selector("root", seq, b0);
 
         BehaviourTree<FakeClock> tree = n.Build(root);
@@ -27,7 +27,7 @@ public sealed class IntrospectionTests
     {
         BtFactory<FakeClock> n = Bt.For<FakeClock>();
         Wait<FakeClock> wait = n.Wait("w", TimeSpan.FromMilliseconds(1000));
-        Do<FakeClock> done = n.Do("d", static _ => TickResult.Success);
+        Do<FakeClock> done = n.Do("d", static (in FakeClock _) => TickResult.Success);
         Selector<FakeClock> root = n.Selector("root", wait, done);
         BehaviourTree<FakeClock> tree = n.Build(root);
 

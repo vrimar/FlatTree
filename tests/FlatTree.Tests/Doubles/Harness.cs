@@ -22,7 +22,7 @@ public sealed class Harness
 
     public TickResult Tick() => Tree.Tick(State, Clock);
 
-    public void ResetTree() => Tree.Reset(State);
+    public void ResetTree() => Tree.Reset(State, Clock);
 
     public NodeStatus StatusOf(BtNode<FakeClock> node) => State[node.Id].Status;
 

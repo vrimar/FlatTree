@@ -10,7 +10,7 @@ public sealed class BehaviourTreePoolTests
     public void Rent_Tick_Return_TracksCountAndCapacity()
     {
         var n = Bt.For<FakeClock>();
-        var tree = n.Build(n.Do("d", static _ => TickResult.Success));
+        var tree = n.Build(n.Do("d", static (in FakeClock _) => TickResult.Success));
         var pool = new BehaviourTreePool<FakeClock>(tree, 4);
 
         pool.Capacity.ShouldBe(4);
@@ -28,7 +28,7 @@ public sealed class BehaviourTreePoolTests
     public void Rent_BeyondCapacity_Throws()
     {
         var n = Bt.For<FakeClock>();
-        var tree = n.Build(n.Do("d", static _ => TickResult.Success));
+        var tree = n.Build(n.Do("d", static (in FakeClock _) => TickResult.Success));
         var pool = new BehaviourTreePool<FakeClock>(tree, 1);
 
         pool.Rent();
@@ -64,7 +64,7 @@ public sealed class BehaviourTreePoolTests
 
         var slot = pool.Rent();
         pool.Tick(slot, new FakeClock()).ShouldBe(TickResult.Running);
-        pool.Reset(slot);
+        pool.Reset(slot, new FakeClock());
 
         pool.StatusOf(slot, wait).ShouldBe(NodeStatus.Fresh);
     }

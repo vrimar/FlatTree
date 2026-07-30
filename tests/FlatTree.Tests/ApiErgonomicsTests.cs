@@ -9,8 +9,8 @@ public sealed class ApiErgonomicsTests
         var n = Bt.For<FakeClock>();
 
         var root = n.Selector(
-            n.Do(static _ => TickResult.Failure),
-            n.Cooldown(TimeSpan.FromMilliseconds(100), n.Do(static _ => TickResult.Success))
+            n.Do(static (in FakeClock _) => TickResult.Failure),
+            n.Cooldown(TimeSpan.FromMilliseconds(100), n.Do(static (in FakeClock _) => TickResult.Success))
         );
         var tree = n.Build(root);
 
@@ -23,8 +23,8 @@ public sealed class ApiErgonomicsTests
     {
         var n = Bt.For<FakeClock>();
 
-        var named = n.Do("explicit", static _ => TickResult.Success);
-        var nameless = n.Do(static _ => TickResult.Success);
+        var named = n.Do("explicit", static (in FakeClock _) => TickResult.Success);
+        var nameless = n.Do(static (in FakeClock _) => TickResult.Success);
 
         named.Name.ShouldBe("explicit");
         nameless.Name.ShouldBe("Do");

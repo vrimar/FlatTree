@@ -38,12 +38,12 @@ public abstract class CompositeNode<TContext> : BtNode<TContext>
         Children = children;
     }
 
-    protected void ResetChildren(Span<NodeState> s)
+    protected void ResetChildren(Span<NodeState> s, in TContext ctx)
     {
         var children = Children;
         for (var i = 0; i < children.Length; i++)
         {
-            children[i].Reset(s);
+            children[i].Reset(s, in ctx);
         }
     }
 
@@ -109,14 +109,14 @@ public abstract class CompositeNode<TContext> : BtNode<TContext>
         return continueOn;
     }
 
-    protected override void OnTerminate(Span<NodeState> s, TickResult status)
+    protected override void OnTerminate(Span<NodeState> s, TickResult status, in TContext ctx)
     {
-        DoReset(s);
+        DoReset(s, in ctx);
     }
 
-    protected override void DoReset(Span<NodeState> s)
+    protected override void DoReset(Span<NodeState> s, in TContext ctx)
     {
-        ResetChildren(s);
+        ResetChildren(s, in ctx);
     }
 
     protected internal override int ChildCount => Children.Length;

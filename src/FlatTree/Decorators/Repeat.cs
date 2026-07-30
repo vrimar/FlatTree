@@ -32,7 +32,7 @@ public sealed class Repeat<TContext> : DecoratorNode<TContext>
 
             if (st.Cursor < _count)
             {
-                Child.Reset(s);
+                Child.Reset(s, in ctx);
                 return TickResult.Running;
             }
         }
@@ -40,15 +40,15 @@ public sealed class Repeat<TContext> : DecoratorNode<TContext>
         return childStatus;
     }
 
-    protected override void OnTerminate(Span<NodeState> s, TickResult status)
+    protected override void OnTerminate(Span<NodeState> s, TickResult status, in TContext ctx)
     {
         s[Id].Cursor = 0;
-        Child.Reset(s);
+        Child.Reset(s, in ctx);
     }
 
-    protected override void DoReset(Span<NodeState> s)
+    protected override void DoReset(Span<NodeState> s, in TContext ctx)
     {
         s[Id].Cursor = 0;
-        base.DoReset(s);
+        base.DoReset(s, in ctx);
     }
 }

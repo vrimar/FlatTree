@@ -19,9 +19,9 @@ public abstract class DecoratorNode<TContext> : BtNode<TContext>
         Child = child;
     }
 
-    protected override void DoReset(Span<NodeState> s)
+    protected override void DoReset(Span<NodeState> s, in TContext ctx)
     {
-        Child.Reset(s);
+        Child.Reset(s, in ctx);
     }
 
     protected internal override int ChildCount => 1;

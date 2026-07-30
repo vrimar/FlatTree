@@ -115,6 +115,10 @@ public sealed class BtFactory<TContext>
     public Repeat<TContext> Repeat(int count, BtNode<TContext> child) =>
         new(nameof(Repeat), child, count);
 
+    public Forever<TContext> Forever(string name, BtNode<TContext> child) => new(name, child);
+
+    public Forever<TContext> Forever(BtNode<TContext> child) => new(nameof(Forever), child);
+
     public Cooldown<TContext> Cooldown(string name, TimeSpan duration, BtNode<TContext> child) =>
         new(name, child, duration);
 
@@ -144,13 +148,13 @@ public sealed class BtFactory<TContext>
 
     // --- leaves ---
 
-    public Do<TContext> Do(string name, Func<TContext, TickResult> action)
+    public Do<TContext> Do(string name, LeafAction<TContext> action)
     {
         RequireNoCapture(action, nameof(action));
         return new(name, action);
     }
 
-    public Do<TContext> Do(Func<TContext, TickResult> action)
+    public Do<TContext> Do(LeafAction<TContext> action)
     {
         RequireNoCapture(action, nameof(action));
         return new(nameof(Do), action);
@@ -168,13 +172,13 @@ public sealed class BtFactory<TContext>
         return new(nameof(Do), action);
     }
 
-    public Condition<TContext> Condition(string name, Func<TContext, bool> predicate)
+    public Condition<TContext> Condition(string name, LeafPredicate<TContext> predicate)
     {
         RequireNoCapture(predicate, nameof(predicate));
         return new(name, predicate);
     }
 
-    public Condition<TContext> Condition(Func<TContext, bool> predicate)
+    public Condition<TContext> Condition(LeafPredicate<TContext> predicate)
     {
         RequireNoCapture(predicate, nameof(predicate));
         return new(nameof(Condition), predicate);
@@ -184,13 +188,23 @@ public sealed class BtFactory<TContext>
 
     public Wait<TContext> Wait(TimeSpan duration) => new(nameof(Wait), duration);
 
-    // A leaf delegate is stored on a node shared by EVERY agent, so it must capture nothing:
-    // a capturing delegate would make every agent read the one captured agent's state. A static
-    // method group has a null Target; a non-capturing lambda is cached on a compiler singleton
-    // with no instance fields; a capturing closure's display class has one instance field per
-    // captured variable. The reflection here runs at build time (DEBUG only), never on the tick
-    // path, and the whole call is compiled out of Release builds.
-    [Conditional("DEBUG")]
+    // --- markers ---
+
+    /// <summary>
+    /// Marks <paramref name="node"/> as <see cref="BtNode{TContext}.Uninterruptible"/> and
+    /// returns it, so it applies inline while authoring.
+    /// </summary>
+    public TNode Uninterruptible<TNode>(TNode node)
+        where TNode : BtNode<TContext>
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        node.Uninterruptible = true;
+        return node;
+    }
+
+    // A static method group has a null Target; a non-capturing lambda is cached on a compiler
+    // singleton with no instance fields; a capturing closure's display class has one instance
+    // field per captured variable. Build-time only — never on the tick path.
     private static void RequireNoCapture(Delegate action, string paramName)
     {
         var target = action.Target;
@@ -220,17 +234,23 @@ public sealed class BtFactory<TContext>
 
     /// <summary>
     /// Walks the immutable node graph, assigns each node an <see cref="BtNode{TContext}.Id"/>
-    /// via DFS pre-order, computes the node count, and returns the shared tree.
+    /// via DFS pre-order, computes the node count, and returns the shared tree. Throws if a node
+    /// is already in a tree, or if an <see cref="BtNode{TContext}.Uninterruptible"/> node sits
+    /// beneath a reactive parent.
     /// </summary>
     public BehaviourTree<TContext> Build(BtNode<TContext> root)
     {
         ArgumentNullException.ThrowIfNull(root);
         var nodes = new List<BtNode<TContext>>();
-        Collect(root, nodes);
+        Collect(root, nodes, null);
         return new BehaviourTree<TContext>(root, nodes.ToArray());
     }
 
-    private static void Collect(BtNode<TContext> node, List<BtNode<TContext>> nodes)
+    private static void Collect(
+        BtNode<TContext> node,
+        List<BtNode<TContext>> nodes,
+        BtNode<TContext>? reactiveAncestor
+    )
     {
         if (node.Id != -1)
         {
@@ -240,13 +260,29 @@ public sealed class BtFactory<TContext>
             );
         }
 
+        if (node.Uninterruptible && reactiveAncestor is not null)
+        {
+            throw new InvalidOperationException(
+                $"Uninterruptible node '{node.Name}' is reachable beneath "
+                    + $"'{reactiveAncestor.Name}' ({reactiveAncestor.GetType().Name.Split('`')[0]}), "
+                    + "which resets lower-priority branches mid-flight. Move it out of the reactive "
+                    + "subtree, or guard the branch so it is never preempted."
+            );
+        }
+
         node.Id = nodes.Count;
         nodes.Add(node);
+
+        var childReactiveAncestor =
+            reactiveAncestor ?? (IsReactive(node) ? node : null);
 
         var childCount = node.ChildCount;
         for (var i = 0; i < childCount; i++)
         {
-            Collect(node.GetChildForBuild(i), nodes);
+            Collect(node.GetChildForBuild(i), nodes, childReactiveAncestor);
         }
     }
+
+    private static bool IsReactive(BtNode<TContext> node) =>
+        node is PrioritySelector<TContext> or PrioritySequence<TContext>;
 }

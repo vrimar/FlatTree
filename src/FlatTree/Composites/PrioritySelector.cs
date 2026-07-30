@@ -25,7 +25,7 @@ public sealed class PrioritySelector<TContext> : CompositeNode<TContext>
             {
                 for (var j = i + 1; j < n; j++)
                 {
-                    children[j].Reset(s);
+                    children[j].Reset(s, in ctx);
                 }
 
                 return childStatus;

@@ -7,10 +7,10 @@ public sealed class BehaviourTreeBuilderTests
     {
         BtFactory<FakeClock> n = Bt.For<FakeClock>();
 
-        Do<FakeClock> a0 = n.Do("a0", static _ => TickResult.Success);
-        Do<FakeClock> a1 = n.Do("a1", static _ => TickResult.Success);
+        Do<FakeClock> a0 = n.Do("a0", static (in FakeClock _) => TickResult.Success);
+        Do<FakeClock> a1 = n.Do("a1", static (in FakeClock _) => TickResult.Success);
         Sequence<FakeClock> seq = n.Sequence("seq", a0, a1);
-        Do<FakeClock> b0 = n.Do("b0", static _ => TickResult.Success);
+        Do<FakeClock> b0 = n.Do("b0", static (in FakeClock _) => TickResult.Success);
         Selector<FakeClock> root = n.Selector("root", seq, b0);
 
         BehaviourTree<FakeClock> tree = n.Build(root);
@@ -45,7 +45,7 @@ public sealed class BehaviourTreeBuilderTests
     public void Build_WhenANodeInstanceIsReused_Throws()
     {
         BtFactory<FakeClock> n = Bt.For<FakeClock>();
-        Do<FakeClock> shared = n.Do("shared", static _ => TickResult.Success);
+        Do<FakeClock> shared = n.Do("shared", static (in FakeClock _) => TickResult.Success);
         Selector<FakeClock> root = n.Selector("root", shared, shared);
 
         Should.Throw<InvalidOperationException>(() => n.Build(root));
@@ -55,7 +55,7 @@ public sealed class BehaviourTreeBuilderTests
     public void NewState_StartsAllSlotsFresh()
     {
         BtFactory<FakeClock> n = Bt.For<FakeClock>();
-        BehaviourTree<FakeClock> tree = n.Build(n.Do("a", static _ => TickResult.Success));
+        BehaviourTree<FakeClock> tree = n.Build(n.Do("a", static (in FakeClock _) => TickResult.Success));
 
         NodeState[] state = tree.NewState();
 

@@ -41,13 +41,13 @@ public sealed class MockNode : BtNode<FakeClock>
         return ReturnStatus;
     }
 
-    protected override void OnTerminate(Span<NodeState> s, TickResult status)
+    protected override void OnTerminate(Span<NodeState> s, TickResult status, in FakeClock ctx)
     {
         TerminateCallCount++;
         TerminateStatus = status;
     }
 
-    protected override void DoReset(Span<NodeState> s)
+    protected override void DoReset(Span<NodeState> s, in FakeClock ctx)
     {
         ResetStatus = s[Id].Status;
         ResetCount++;

@@ -23,11 +23,11 @@ public sealed class RandomSequence<TContext> : CompositeNode<TContext>
     protected override TickResult Update(Span<NodeState> s, in TContext ctx) =>
         TickShuffled(s, in ctx, TickResult.Success, _randomProvider);
 
-    protected override void DoReset(Span<NodeState> s)
+    protected override void DoReset(Span<NodeState> s, in TContext ctx)
     {
         ref var st = ref s[Id];
         st.Cursor = 0;
         st.Stamp = DeterministicRng.DrawNonZeroSeed(_randomProvider);
-        base.DoReset(s);
+        base.DoReset(s, in ctx);
     }
 }

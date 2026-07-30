@@ -40,22 +40,25 @@ public sealed class BehaviourTree<TContext>
     /// </summary>
     public TickResult Tick(Span<NodeState> s, in TContext ctx)
     {
-        Debug.Assert(s.Length == NodeCount, StateLengthMessage);
+        RequireStateLength(s.Length);
         return Root.Tick(s, in ctx);
     }
 
     /// <summary>Ticks the tree against an agent's state. Zero allocation.</summary>
     public TickResult Tick(NodeState[] s, in TContext ctx) => Tick(s.AsSpan(), in ctx);
 
-    /// <summary>Resets an agent's state back to fresh.</summary>
-    public void Reset(Span<NodeState> s)
+    /// <summary>
+    /// Resets an agent's state back to fresh, giving every non-fresh node a chance to clean up
+    /// against <paramref name="ctx"/>. Zero allocation.
+    /// </summary>
+    public void Reset(Span<NodeState> s, in TContext ctx)
     {
-        Debug.Assert(s.Length == NodeCount, StateLengthMessage);
-        Root.Reset(s);
+        RequireStateLength(s.Length);
+        Root.Reset(s, in ctx);
     }
 
     /// <summary>Resets an agent's state back to fresh.</summary>
-    public void Reset(NodeState[] s) => Reset(s.AsSpan());
+    public void Reset(NodeState[] s, in TContext ctx) => Reset(s.AsSpan(), in ctx);
 
     /// <summary>
     /// The status of <paramref name="node"/> for the agent represented by <paramref name="s"/> —
@@ -63,7 +66,7 @@ public sealed class BehaviourTree<TContext>
     /// </summary>
     public NodeStatus StatusOf(ReadOnlySpan<NodeState> s, BtNode<TContext> node)
     {
-        Debug.Assert(s.Length == NodeCount, StateLengthMessage);
+        RequireStateLength(s.Length);
         Debug.Assert(
             (uint)node.Id < (uint)NodeCount && _nodes[node.Id] == node,
             "node is not part of this tree."
@@ -77,4 +80,19 @@ public sealed class BehaviourTree<TContext>
     /// </summary>
     public NodeStatus StatusOf(NodeState[] s, BtNode<TContext> node) =>
         StatusOf((ReadOnlySpan<NodeState>)s, node);
+
+    private void RequireStateLength(int length)
+    {
+        if (length != NodeCount)
+        {
+            ThrowStateLength(length);
+        }
+    }
+
+    [DoesNotReturn]
+    private void ThrowStateLength(int length) =>
+        throw new ArgumentException(
+            $"{StateLengthMessage} (got {length}, expected {NodeCount}).",
+            "s"
+        );
 }

@@ -47,8 +47,8 @@ public sealed class CustomNodeExtensionTests
     public void CustomComposite_ChildrenParticipateInBuild_AndTick()
     {
         var n = Bt.For<FakeClock>();
-        var a = n.Do("a", static _ => TickResult.Success);
-        var b = n.Do("b", static _ => TickResult.Success);
+        var a = n.Do("a", static (in FakeClock _) => TickResult.Success);
+        var b = n.Do("b", static (in FakeClock _) => TickResult.Success);
         var root = new AllSucceed<FakeClock>("all", a, b);
 
         var tree = n.Build(root);
@@ -68,8 +68,8 @@ public sealed class CustomNodeExtensionTests
         var n = Bt.For<FakeClock>();
         var root = new AllSucceed<FakeClock>(
             "all",
-            n.Do("a", static _ => TickResult.Success),
-            n.Do("b", static _ => TickResult.Failure)
+            n.Do("a", static (in FakeClock _) => TickResult.Success),
+            n.Do("b", static (in FakeClock _) => TickResult.Failure)
         );
         var tree = n.Build(root);
 

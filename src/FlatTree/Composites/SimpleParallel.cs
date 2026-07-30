@@ -116,9 +116,9 @@ public sealed class SimpleParallel<TContext> : CompositeNode<TContext>
         return allFailure ? TickResult.Failure : TickResult.Running;
     }
 
-    protected override void DoReset(Span<NodeState> s)
+    protected override void DoReset(Span<NodeState> s, in TContext ctx)
     {
         s[Id].Cursor = 0;
-        base.DoReset(s);
+        base.DoReset(s, in ctx);
     }
 }

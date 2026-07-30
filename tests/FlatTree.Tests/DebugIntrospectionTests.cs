@@ -10,7 +10,7 @@ public sealed class DebugIntrospectionTests
     {
         var n = Bt.For<FakeClock>();
         var wait = n.Wait("w", TimeSpan.FromMilliseconds(1000));
-        var done = n.Do("done", static _ => TickResult.Success);
+        var done = n.Do("done", static (in FakeClock _) => TickResult.Success);
         var root = n.Selector("root", wait, done);
         var tree = n.Build(root);
 
@@ -29,7 +29,7 @@ public sealed class DebugIntrospectionTests
     public void ToDebugString_StructureOnly_OmitsStatus()
     {
         var n = Bt.For<FakeClock>();
-        var tree = n.Build(n.Do("only", static _ => TickResult.Success));
+        var tree = n.Build(n.Do("only", static (in FakeClock _) => TickResult.Success));
 
         var dump = tree.ToDebugString();
 
@@ -43,8 +43,8 @@ public sealed class DebugIntrospectionTests
         var n = Bt.For<FakeClock>();
         var root = n.Sequence(
             "seq",
-            n.Do("a", static _ => TickResult.Success),
-            n.Do("b", static _ => TickResult.Success)
+            n.Do("a", static (in FakeClock _) => TickResult.Success),
+            n.Do("b", static (in FakeClock _) => TickResult.Success)
         );
         var tree = n.Build(root);
 
@@ -59,7 +59,7 @@ public sealed class DebugIntrospectionTests
     public void ToDot_WithState_ColorsNodes()
     {
         var n = Bt.For<FakeClock>();
-        var tree = n.Build(n.Do("d", static _ => TickResult.Success));
+        var tree = n.Build(n.Do("d", static (in FakeClock _) => TickResult.Success));
 
         var state = tree.NewState();
         tree.Tick(state, new FakeClock());

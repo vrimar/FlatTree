@@ -46,7 +46,7 @@ BtFactory<Ctx> n = Bt.For<Ctx>(/* optional IRandomProvider */);
 BehaviourTree<Ctx> tree = n.Build(
     n.PrioritySelector("root",
         n.Sequence("enrage",
-            n.Condition("hp<20%", static c => c.Hp < c.MaxHp / 5),
+            n.Condition("hp<20%", static (in Ctx c) => c.Hp < c.MaxHp / 5),
             n.Cooldown("enrage-cd", TimeSpan.FromSeconds(30),
                 n.Do("cast-enrage", Actions.CastEnrage))),
         n.Sequence("attack",
@@ -69,9 +69,11 @@ Reusable subtrees are just methods returning `BtNode<Ctx>`.
   the name is for debugging/inspection only and defaults to the node type.
 - **Durations are `TimeSpan`** (`Wait`, `Cooldown`, `RateLimiter`, `TimeLimit`).
 - **`Do`/`Condition` delegates return `TickResult`** (`Running`/`Success`/`Failure`) and `bool`
-  respectively, and must capture nothing. A `Do` overload taking
+  respectively, and must capture nothing. They take the context by `in`, so a lambda has to spell
+  out the modifier and the type: `static (in Ctx c) => ...`. A `Do` overload taking
   `(in Ctx, ref int cursor, ref long stamp)` exposes the node's per-agent scratch for
-  multi-tick actions.
+  multi-tick actions; that scratch is cleared on reset, so an aborted action restarts rather than
+  resuming mid-flight.
 - **Deterministic randomness:** pass `Bt.For<Ctx>(new SeededRandomProvider(seed))` to make
   `RandomSelector`/`RandomSequence` orderings and `Chance` rolls reproducible.
 - **Custom nodes:** subclass `BtNode<Ctx>`/`LeafNode<Ctx>`/`CompositeNode<Ctx>`/
@@ -83,8 +85,42 @@ Reusable subtrees are just methods returning `BtNode<Ctx>`.
 - **Composites:** `Selector`, `Sequence`, `PrioritySelector`, `PrioritySequence`,
   `RandomSelector`, `RandomSequence`, `SimpleParallel` (runs up to 16 children in parallel).
 - **Decorators:** `Inverter`, `AlwaysSucceed`, `AlwaysFail`, `AutoReset`, `UntilSuccess`,
-  `UntilFailed`, `Repeat`, `Cooldown`, `RateLimiter`, `TimeLimit`, `Chance`.
+  `UntilFailed`, `Repeat`, `Forever`, `Cooldown`, `RateLimiter`, `TimeLimit`, `Chance`.
 - **Leaves:** `Do`, `Condition`, `Wait`.
+
+### Reactive vs resuming composites
+
+This is the easiest thing to get wrong at authoring time:
+
+| | while a child is `Running` |
+|---|---|
+| `Selector` / `Sequence` | resume at the stored `Cursor`. Earlier children are **not** re-ticked, so a higher-priority guard is **not** re-evaluated. |
+| `PrioritySelector` / `PrioritySequence` | re-tick from child 0 every tick, and recursively `Reset` every lower-priority child once a higher-priority one takes over. |
+
+Use a priority composite wherever a guard must be able to interrupt a running branch. Use the
+plain ones where a started branch should be allowed to finish.
+
+### Aborting safely
+
+`Reset` is the library's only abort notification, and it takes the context:
+
+```csharp
+protected override void DoReset(Span<NodeState> s, in Ctx ctx) { /* release what you acquired */ }
+protected override void OnTerminate(Span<NodeState> s, TickResult status, in Ctx ctx) { }
+```
+
+A node preempted by a `PrioritySelector` learns of it through `DoReset` and can undo externally
+visible work. `Reset` skips `Fresh` nodes, so an untouched branch costs nothing.
+
+When a subtree must *never* be torn down mid-flight — an irreversible commit, a distributed
+rendezvous — mark it and let `Build` enforce it:
+
+```csharp
+n.Uninterruptible(n.Sequence("commit", ...))
+```
+
+`Build` throws if such a node is reachable beneath a `PrioritySelector`/`PrioritySequence`. The
+failure it prevents is silent, so it is a build-time error rather than a convention.
 
 ## Design constraints
 

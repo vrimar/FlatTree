@@ -3,18 +3,18 @@ namespace FlatTree.Tests.Doubles;
 /// <summary>Sample trees used across tests. Leaf delegates are static (capture nothing).</summary>
 public static class SampleTrees
 {
-    private static TickResult AlwaysSucceedAction(FakeClock c) => TickResult.Success;
+    private static TickResult AlwaysSucceedAction(in FakeClock c) => TickResult.Success;
 
-    private static TickResult AlwaysRunningAction(FakeClock c) => TickResult.Running;
+    private static TickResult AlwaysRunningAction(in FakeClock c) => TickResult.Running;
 
-    private static TickResult PeriodicAction(FakeClock c) =>
+    private static TickResult PeriodicAction(in FakeClock c) =>
         (c.NowMs / 100) % 2 == 0 ? TickResult.Success : TickResult.Running;
 
-    private static bool TruePredicate(FakeClock c) => true;
+    private static bool TruePredicate(in FakeClock c) => true;
 
-    private static bool FalsePredicate(FakeClock c) => false;
+    private static bool FalsePredicate(in FakeClock c) => false;
 
-    private static bool PeriodicPredicate(FakeClock c) => (c.NowMs / 100) % 3 == 0;
+    private static bool PeriodicPredicate(in FakeClock c) => (c.NowMs / 100) % 3 == 0;
 
     /// <summary>Builds a tree that exercises every node type. <paramref name="nodeCount"/> is its node count.</summary>
     public static BehaviourTree<FakeClock> EveryNodeType(out int nodeCount)

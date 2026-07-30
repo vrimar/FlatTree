@@ -13,9 +13,9 @@ namespace FlatTree;
 public sealed class Condition<TContext> : LeafNode<TContext>
     where TContext : IClock
 {
-    private readonly Func<TContext, bool> _predicate;
+    private readonly LeafPredicate<TContext> _predicate;
 
-    internal Condition(string name, Func<TContext, bool> predicate)
+    internal Condition(string name, LeafPredicate<TContext> predicate)
         : base(name)
     {
         ArgumentNullException.ThrowIfNull(predicate);
@@ -24,6 +24,6 @@ public sealed class Condition<TContext> : LeafNode<TContext>
 
     protected override TickResult Update(Span<NodeState> s, in TContext ctx)
     {
-        return _predicate(ctx) ? TickResult.Success : TickResult.Failure;
+        return _predicate(in ctx) ? TickResult.Success : TickResult.Failure;
     }
 }

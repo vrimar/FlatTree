@@ -41,15 +41,15 @@ public sealed class TimeLimit<TContext> : DecoratorNode<TContext>
         return Child.Tick(s, in ctx);
     }
 
-    protected override void OnTerminate(Span<NodeState> s, TickResult status)
+    protected override void OnTerminate(Span<NodeState> s, TickResult status, in TContext ctx)
     {
         s[Id].Cursor &= ~StartedFlag;
-        Child.Reset(s);
+        Child.Reset(s, in ctx);
     }
 
-    protected override void DoReset(Span<NodeState> s)
+    protected override void DoReset(Span<NodeState> s, in TContext ctx)
     {
         s[Id].Cursor &= ~StartedFlag;
-        base.DoReset(s);
+        base.DoReset(s, in ctx);
     }
 }

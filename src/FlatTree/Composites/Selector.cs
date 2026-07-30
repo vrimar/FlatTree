@@ -15,9 +15,9 @@ public sealed class Selector<TContext> : CompositeNode<TContext>
     protected override TickResult Update(Span<NodeState> s, in TContext ctx) =>
         TickSequential(s, in ctx, TickResult.Failure);
 
-    protected override void DoReset(Span<NodeState> s)
+    protected override void DoReset(Span<NodeState> s, in TContext ctx)
     {
         s[Id].Cursor = 0;
-        base.DoReset(s);
+        base.DoReset(s, in ctx);
     }
 }

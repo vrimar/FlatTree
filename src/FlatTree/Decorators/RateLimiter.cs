@@ -1,7 +1,7 @@
 namespace FlatTree;
 
 /// <summary>
-/// Caches the child's last non-Running result for <paramref name="interval"/> of logical time,
+/// Caches the child's last non-Running result for <c>interval</c> of logical time,
 /// only re-ticking the child once the interval has elapsed (or on the very first tick). Running
 /// is never cached — while the child runs it is re-ticked every tick. <c>Cursor</c> low byte
 /// holds the last child status; bit 8 is the "has a cached timestamp" flag; <c>Stamp</c> is

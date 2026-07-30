@@ -98,7 +98,7 @@ public sealed class BehaviourTreePool<TContext>
     public TickResult Tick(int slot, in TContext ctx) => _tree.Tick(Slice(slot), in ctx);
 
     /// <summary>Resets the agent in <paramref name="slot"/> back to fresh.</summary>
-    public void Reset(int slot) => _tree.Reset(Slice(slot));
+    public void Reset(int slot, in TContext ctx) => _tree.Reset(Slice(slot), in ctx);
 
     /// <summary>The status of <paramref name="node"/> for the agent in <paramref name="slot"/>.</summary>
     public NodeStatus StatusOf(int slot, BtNode<TContext> node) =>

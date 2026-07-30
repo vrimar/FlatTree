@@ -10,10 +10,10 @@ namespace FlatTree.Tests;
 public sealed class ResetCascadeTests
 {
     // High-priority child is "active" (Running) only inside the [100, 200) window.
-    private static TickResult HighRunningInWindowElseFailure(FakeClock c) =>
+    private static TickResult HighRunningInWindowElseFailure(in FakeClock c) =>
         c.NowMs is >= 100 and < 200 ? TickResult.Running : TickResult.Failure;
 
-    private static TickResult HighRunningInWindowElseSuccess(FakeClock c) =>
+    private static TickResult HighRunningInWindowElseSuccess(in FakeClock c) =>
         c.NowMs is >= 100 and < 200 ? TickResult.Running : TickResult.Success;
 
     [Test]
@@ -24,7 +24,7 @@ public sealed class ResetCascadeTests
         PrioritySelector<FakeClock> root = n.PrioritySelector(
             "root",
             n.Do("high", HighRunningInWindowElseFailure),
-            n.Sequence("low", wait, n.Do("d", static _ => TickResult.Success))
+            n.Sequence("low", wait, n.Do("d", static (in FakeClock _) => TickResult.Success))
         );
         FakeClock clock = new FakeClock();
         Harness h = new Harness(n, root, clock);
@@ -58,7 +58,7 @@ public sealed class ResetCascadeTests
         PrioritySequence<FakeClock> root = n.PrioritySequence(
             "root",
             n.Do("high", HighRunningInWindowElseSuccess),
-            n.Sequence("low", wait, n.Do("d", static _ => TickResult.Success))
+            n.Sequence("low", wait, n.Do("d", static (in FakeClock _) => TickResult.Success))
         );
         FakeClock clock = new FakeClock();
         Harness h = new Harness(n, root, clock);
