@@ -6,6 +6,13 @@ namespace FlatTree;
 /// (RandomSelector/RandomSequence orderings and Chance rolls) fully reproducible for replay and
 /// testing. Allocation-free per call. Not thread-safe (a tree is single-threaded by design).
 /// </summary>
+/// <remarks>
+/// One provider is shared by every tree and agent built from the same factory, and it is one
+/// advancing stream: what any agent draws depends on how many draws came before it globally.
+/// Reproducing a run therefore means replaying every draw in the same order — a single agent
+/// replayed alone will diverge. For per-tree or per-agent replay, give each its own factory and
+/// provider.
+/// </remarks>
 public sealed class SeededRandomProvider : IRandomProvider
 {
     private DeterministicRng _rng;

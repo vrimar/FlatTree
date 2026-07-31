@@ -144,6 +144,71 @@ public sealed class ArgumentValidationTests
         h.Tick().ShouldBe(TickResult.Success);
     }
 
+    // Evaluate treats anything that is not BothMustSucceed as OnlyOneMustSucceed, so an unmapped
+    // value would silently pick a policy the caller never asked for.
+    [Test]
+    public void SimpleParallel_RejectsAPolicyOutsideTheEnum()
+    {
+        var n = Bt.For<FakeClock>();
+
+        Should.Throw<ArgumentOutOfRangeException>(() =>
+            n.SimpleParallel("sp", (SimpleParallelPolicy)7, n.Condition("c", True))
+        );
+    }
+
+    // The composite copies the array, so a caller who retains theirs cannot reshape a built tree.
+    [Test]
+    public void MutatingTheCallersChildArrayAfterConstruction_DoesNotAffectTheTree()
+    {
+        var n = Bt.For<FakeClock>();
+        var a = n.Condition("a", True);
+        var b = n.Condition("b", True);
+        var children = new BtNode<FakeClock>[] { a, b };
+        var root = n.Sequence("root", children);
+
+        children[1] = a;
+        children[0] = null!;
+
+        var tree = n.Build(root);
+
+        tree.NodeCount.ShouldBe(3);
+        root.Children[0].ShouldBeSameAs(a);
+        root.Children[1].ShouldBeSameAs(b);
+        tree.Tick(tree.NewState(), new FakeClock()).ShouldBe(TickResult.Success);
+    }
+
+    // Build is what enforces the marker, so applying it afterwards would protect nothing.
+    [Test]
+    public void Uninterruptible_AfterBuild_IsRejected()
+    {
+        var n = Bt.For<FakeClock>();
+        var commit = n.Do("commit", static (in FakeClock _) => TickResult.Success);
+        n.Build(n.PrioritySelector("root", n.Condition("high", True), commit));
+
+        Should.Throw<InvalidOperationException>(() => n.Uninterruptible(commit));
+    }
+
+    [Test]
+    public void TreeNodesAreNotHandedOutAsAMutableArray()
+    {
+        typeof(BehaviourTree<FakeClock>)
+            .GetProperty(nameof(BehaviourTree<FakeClock>.Nodes))!
+            .PropertyType.ShouldBe(typeof(ReadOnlySpan<BtNode<FakeClock>>));
+    }
+
+    [Test]
+    public void CompositeChildrenAreNotHandedOutAsAMutableArray()
+    {
+        var n = Bt.For<FakeClock>();
+        var root = n.Sequence("root", n.Condition("a", True), n.Condition("b", True));
+
+        typeof(CompositeNode<FakeClock>)
+            .GetProperty(nameof(CompositeNode<FakeClock>.Children))!
+            .PropertyType.ShouldBe(typeof(ReadOnlySpan<BtNode<FakeClock>>));
+
+        root.Children.Length.ShouldBe(2);
+    }
+
     // IRandomProvider documents the result as being in [0, maxExclusive), which is empty for 0, so
     // both shipped providers must reject it rather than one returning 0.
     [Test]

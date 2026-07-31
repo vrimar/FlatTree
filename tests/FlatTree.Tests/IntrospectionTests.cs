@@ -14,7 +14,7 @@ public sealed class IntrospectionTests
 
         BehaviourTree<FakeClock> tree = n.Build(root);
 
-        tree.Nodes.Count.ShouldBe(tree.NodeCount);
+        tree.Nodes.Length.ShouldBe(tree.NodeCount);
         tree.Nodes[root.Id].ShouldBeSameAs(root);
         tree.Nodes[seq.Id].ShouldBeSameAs(seq);
         tree.Nodes[a0.Id].ShouldBeSameAs(a0);

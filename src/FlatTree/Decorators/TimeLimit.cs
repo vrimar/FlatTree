@@ -49,6 +49,7 @@ public sealed class TimeLimit<TContext> : DecoratorNode<TContext>
     protected override void DoReset(Span<NodeState> s, in TContext ctx)
     {
         s[Id].Cursor &= ~StartedFlag;
+        s[Id].Stamp = 0;
         base.DoReset(s, in ctx);
     }
 

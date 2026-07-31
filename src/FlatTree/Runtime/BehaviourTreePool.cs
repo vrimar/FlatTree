@@ -95,12 +95,20 @@ public sealed class BehaviourTreePool<TContext>
 
     /// <summary>
     /// Resets the agent in <paramref name="slot"/> — giving every non-fresh node a chance to release
-    /// what it acquired — then releases the slot.
+    /// what it acquired — then releases the slot. The slot is released even if a node's cleanup
+    /// throws. Use <see cref="ResetAll(int, in TContext)"/> before this when a tick threw, since
+    /// that leaves nodes an ordinary reset cannot reach.
     /// </summary>
     public void Return(int slot, in TContext ctx)
     {
-        _tree.Reset(Slice(slot), in ctx);
-        Return(slot);
+        try
+        {
+            _tree.Reset(Slice(slot), in ctx);
+        }
+        finally
+        {
+            Return(slot);
+        }
     }
 
     /// <summary>Ticks the agent in <paramref name="slot"/>. Zero allocation.</summary>
@@ -108,6 +116,13 @@ public sealed class BehaviourTreePool<TContext>
 
     /// <summary>Resets the agent in <paramref name="slot"/> back to fresh.</summary>
     public void Reset(int slot, in TContext ctx) => _tree.Reset(Slice(slot), in ctx);
+
+    /// <summary>
+    /// Resets the agent in <paramref name="slot"/> back to fresh, reaching nodes that
+    /// <see cref="Reset(int, in TContext)"/> cannot — see
+    /// <see cref="BehaviourTree{TContext}.ResetAll(Span{NodeState}, in TContext)"/>.
+    /// </summary>
+    public void ResetAll(int slot, in TContext ctx) => _tree.ResetAll(Slice(slot), in ctx);
 
     /// <summary>The status of <paramref name="node"/> for the agent in <paramref name="slot"/>.</summary>
     public NodeStatus StatusOf(int slot, BtNode<TContext> node) =>

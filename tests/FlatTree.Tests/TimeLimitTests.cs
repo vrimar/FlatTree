@@ -44,6 +44,27 @@ public sealed class TimeLimitTests
         child.UpdateCallCount.ShouldBe(2);
     }
 
+    // Expiring tears down a Running child, which is why TimeLimit declares PreemptsRunningChildren:
+    // without the reset the child keeps whatever it acquired and resumes mid-flight.
+    [Test]
+    public void WhenTimeLimitExpires_TheRunningChildIsResetSoItCanRelease()
+    {
+        var n = Bt.For<RecordingClock>();
+        var work = new CleanupLeaf("channel");
+        var tree = n.Build(n.TimeLimit("limit", TimeSpan.FromMilliseconds(1000), work));
+        var state = tree.NewState();
+        var clock = new RecordingClock();
+
+        tree.Tick(state, clock).ShouldBe(TickResult.Running);
+        clock.Released.ShouldBeEmpty();
+
+        clock.Advance(2000);
+        tree.Tick(state, clock).ShouldBe(TickResult.Failure);
+
+        clock.Released.ShouldBe(new[] { "channel:reset" });
+        state[work.Id].Status.ShouldBe(NodeStatus.Fresh);
+    }
+
     [Test]
     public void WhenResettingWhileRunning_ReInitializeTimer()
     {

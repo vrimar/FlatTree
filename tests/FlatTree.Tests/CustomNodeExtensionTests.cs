@@ -94,6 +94,27 @@ public sealed class CustomNodeExtensionTests
         tree.Tick(tree.NewState(), new FakeClock()).ShouldBe(TickResult.Failure);
     }
 
+    // AllSucceed does not override DoReset. The base must still cascade, or a Fresh parent would
+    // sit over a Running child and every later Reset would short-circuit past it forever.
+    [Test]
+    public void CustomComposite_WithoutADoResetOverride_StillResetsItsChildren()
+    {
+        var n = Bt.For<RecordingClock>();
+        var work = new CleanupLeaf("held");
+        var root = new AllSucceed<RecordingClock>("all", work);
+        var tree = n.Build(root);
+        var state = tree.NewState();
+        var clock = new RecordingClock();
+
+        tree.Tick(state, clock).ShouldBe(TickResult.Running);
+        state[work.Id].Status.ShouldBe(NodeStatus.Running);
+
+        tree.Reset(state, clock);
+
+        clock.Released.ShouldBe(new[] { "held:reset" });
+        state[work.Id].Status.ShouldBe(NodeStatus.Fresh);
+    }
+
     [Test]
     public void CustomNodesWithValueEquality_AreDistinguishedByReference()
     {

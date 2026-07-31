@@ -29,6 +29,15 @@ public sealed class SimpleParallel<TContext> : CompositeNode<TContext>
             );
         }
 
+        // Evaluate treats anything that is not BothMustSucceed as OnlyOneMustSucceed.
+        if (
+            policy
+            is not (SimpleParallelPolicy.BothMustSucceed or SimpleParallelPolicy.OnlyOneMustSucceed)
+        )
+        {
+            throw new ArgumentOutOfRangeException(nameof(policy));
+        }
+
         _policy = policy;
     }
 
@@ -38,7 +47,7 @@ public sealed class SimpleParallel<TContext> : CompositeNode<TContext>
     protected override TickResult Update(Span<NodeState> s, in TContext ctx)
     {
         ref var st = ref s[Id];
-        var children = Children;
+        var children = _children;
         var n = children.Length;
 
         // st.Status still holds the PREVIOUS tick's status (Tick writes it after Update).

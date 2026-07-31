@@ -21,9 +21,10 @@ public sealed class BehaviourTree<TContext>
 
     /// <summary>
     /// Every node in the tree, indexed by <see cref="BtNode{TContext}.Id"/> (DFS pre-order).
-    /// Read-only; intended for debugging, inspection, and visualization.
+    /// Read-only: this is the array the tree indexes by <c>Id</c>, so handing it out mutably would
+    /// let a caller desynchronise a node from its own state slot. For debugging and visualization.
     /// </summary>
-    public IReadOnlyList<BtNode<TContext>> Nodes => _nodes;
+    public ReadOnlySpan<BtNode<TContext>> Nodes => _nodes;
 
     internal BehaviourTree(BtNode<TContext> root, BtNode<TContext>[] nodes)
     {
@@ -59,6 +60,56 @@ public sealed class BehaviourTree<TContext>
 
     /// <summary>Resets an agent's state back to fresh.</summary>
     public void Reset(NodeState[] s, in TContext ctx) => Reset(s.AsSpan(), in ctx);
+
+    /// <summary>
+    /// Resets an agent's state back to fresh, reaching nodes that
+    /// <see cref="Reset(Span{NodeState}, in TContext)"/> cannot. Use this to recover an agent after
+    /// an exception escaped <see cref="Tick(Span{NodeState}, in TContext)"/>: a node whose
+    /// <c>Update</c> threw never had its status written, so it reports Fresh over a dirty subtree
+    /// and the ordinary cascade short-circuits above it. Like <c>Reset</c>, this preserves state a
+    /// node deliberately keeps across a reset (a <see cref="Cooldown{TContext}"/> timer).
+    /// </summary>
+    /// <remarks>
+    /// Unlike <see cref="Reset(Span{NodeState}, in TContext)"/> this calls <c>DoReset</c> on EVERY
+    /// node, including ones that never ticked — a node that acquired and then threw leaves a slot
+    /// that reads as untouched, so the slot cannot be used to decide. Cleanup must therefore be
+    /// idempotent and safe when nothing was acquired: guard it on a flag the node itself sets, the
+    /// way the state is guarded elsewhere. Within one call each node is visited once, children
+    /// before parents. A cleanup that throws does not stop the sweep; the failures are collected
+    /// and rethrown together. Allocation-free unless a cleanup throws.
+    /// </remarks>
+    public void ResetAll(Span<NodeState> s, in TContext ctx)
+    {
+        RequireStateLength(s.Length);
+
+        List<Exception>? failures = null;
+
+        // Ids are DFS pre-order, so descending visits every child before its parent: by the time a
+        // parent's DoReset cascades, its children are already Fresh and short-circuit.
+        for (var i = _nodes.Length - 1; i >= 0; i--)
+        {
+            try
+            {
+                _nodes[i].ResetForRecovery(s, in ctx);
+            }
+            catch (Exception ex)
+            {
+                // One node's cleanup failing must not strand every remaining node's.
+                (failures ??= new List<Exception>()).Add(ex);
+            }
+        }
+
+        if (failures is not null)
+        {
+            throw new AggregateException("One or more nodes failed to reset.", failures);
+        }
+    }
+
+    /// <summary>
+    /// Resets an agent's state back to fresh, reaching nodes that
+    /// <see cref="Reset(NodeState[], in TContext)"/> cannot.
+    /// </summary>
+    public void ResetAll(NodeState[] s, in TContext ctx) => ResetAll(s.AsSpan(), in ctx);
 
     /// <summary>
     /// The status of <paramref name="node"/> for the agent represented by <paramref name="s"/> —

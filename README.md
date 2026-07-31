@@ -141,6 +141,37 @@ n.Uninterruptible(n.Sequence("commit", ...))
 overrides `PreemptsRunningChildren`. The failure it prevents is silent, so it is a build-time error
 rather than a convention.
 
+### Recovering after an exception
+
+`Tick` writes a node's status only once `Update` returns, so a node whose `Update` throws keeps the
+status it had *before* that tick. Where that status was `Fresh` — the first tick, or a branch just
+entered — the node reports `Fresh` over a subtree that is anything but, and `Reset` short-circuits
+above the mess. (After a throw on a later tick the ancestors are still `Running`, so `Reset` does
+cascade and recovers normally.) For the cases it cannot reach, `ResetAll` sweeps the flat node array
+instead of cascading:
+
+```csharp
+try { tree.Tick(state, ctx); }
+catch (Exception) { tree.ResetAll(state, ctx); }   // reaches the whole tree
+```
+
+It keeps state a node deliberately holds across a reset (see the table below). It differs from
+`Reset` in two ways: no ancestor can hide a dirty subtree from it, **and it calls `DoReset` on every
+node — including ones that never ticked**, since a node that acquired and then threw leaves a slot
+that looks untouched. Cleanup hooks must therefore be idempotent and safe when nothing was acquired:
+
+```csharp
+protected override void DoReset(Span<NodeState> s, in Ctx ctx)
+{
+    if ((s[Id].Cursor & AcquiredFlag) == 0) { return; }   // nothing to release
+    s[Id].Cursor &= ~AcquiredFlag;
+    ctx.Release(...);
+}
+```
+
+Because of that, `pool.Return(slot, ctx)` uses the ordinary `Reset`. Reach for
+`pool.ResetAll(slot, ctx)` before returning a slot only when a tick actually threw.
+
 ### What `Reset` clears
 
 `Reset` rewinds *traversal*, not the agent's history:
@@ -148,7 +179,7 @@ rather than a convention.
 | State | On `Reset` |
 |---|---|
 | cursors, started flags, `Do` scratch, `Wait`/`TimeLimit` timers | cleared — they describe the activation being abandoned |
-| `Cooldown` timer, `RateLimiter` interval | **kept** — they describe what the agent did, so preemption cannot refund them |
+| `Cooldown` timer, `RateLimiter` interval and cached verdict | **kept** — they describe what the agent did, so preemption cannot refund them |
 
 So a preempted branch cannot dodge its cooldown by being interrupted. For an agent that should start
 with no history at all, take a fresh `NewState()` or a recycled `BehaviourTreePool` slot rather than

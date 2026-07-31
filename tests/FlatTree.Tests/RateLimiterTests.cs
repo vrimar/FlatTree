@@ -106,7 +106,7 @@ public sealed class RateLimiterTests
     }
 
     [Test]
-    public void ResetKeepsTheIntervalTimerButDropsTheCachedVerdict()
+    public void ResetKeepsTheIntervalTimerAndTheCachedVerdict()
     {
         BtFactory<FakeClock> n = Bt.For<FakeClock>();
         MockNode child = new MockNode { ReturnStatus = TickResult.Success };
@@ -123,15 +123,43 @@ public sealed class RateLimiterTests
         h.ResetTree();
         h.StatusOf(sut).ShouldBe(NodeStatus.Fresh);
 
-        // Still gated, so the child must not be re-ticked; but the stale Success must not be
-        // replayed by a node reporting itself Fresh.
+        // Still gated, so the child must not be re-ticked and the cached verdict is replayed.
         clock.Advance(500);
-        h.Tick().ShouldBe(TickResult.Failure);
+        h.Tick().ShouldBe(TickResult.Success);
         child.UpdateCallCount.ShouldBe(1);
 
         // Once the interval elapses the child is evaluated again as normal.
         clock.Advance(500);
         h.Tick().ShouldBe(TickResult.Success);
         child.UpdateCallCount.ShouldBe(2);
+    }
+
+    [Test]
+    public void BeneathACompositeThatCompletes_TheVerdictSurvivesTheChildReset()
+    {
+        BtFactory<FakeClock> n = Bt.For<FakeClock>();
+        MockNode gated = new MockNode { ReturnStatus = TickResult.Success };
+        FakeClock clock = new FakeClock();
+        Harness h = new Harness(
+            n,
+            n.Sequence(
+                "attack",
+                n.RateLimiter("scan", TimeSpan.FromMilliseconds(1000), gated),
+                n.Do("shoot", static (in FakeClock c) => TickResult.Success)
+            ),
+            clock
+        );
+
+        h.Tick().ShouldBe(TickResult.Success);
+        gated.UpdateCallCount.ShouldBe(1);
+
+        // The sequence completed, so it reset its children; the interval must still hold.
+        clock.Advance(16);
+        h.Tick().ShouldBe(TickResult.Success);
+        gated.UpdateCallCount.ShouldBe(1);
+
+        clock.Advance(1000);
+        h.Tick().ShouldBe(TickResult.Success);
+        gated.UpdateCallCount.ShouldBe(2);
     }
 }

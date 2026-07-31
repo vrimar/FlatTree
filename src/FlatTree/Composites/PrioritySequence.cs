@@ -13,7 +13,7 @@ public sealed class PrioritySequence<TContext> : CompositeNode<TContext>
 
     protected override TickResult Update(Span<NodeState> s, in TContext ctx)
     {
-        var children = Children;
+        var children = _children;
         var n = children.Length;
 
         for (var i = 0; i < n; i++)

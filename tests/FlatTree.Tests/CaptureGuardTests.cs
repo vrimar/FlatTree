@@ -51,6 +51,49 @@ public sealed class CaptureGuardTests
         );
     }
 
+    private class StatefulBase
+    {
+        private int _calls;
+
+        protected void Bump() => _calls++;
+    }
+
+    private sealed class Service : StatefulBase
+    {
+        public TickResult Act(in FakeClock c)
+        {
+            Bump();
+            return TickResult.Success;
+        }
+    }
+
+    // A multicast delegate reports only its last entry's Target, so the capturing half would
+    // otherwise be invisible to the guard.
+    [Test]
+    public void MulticastDelegate_IsRejectedEvenWhenTheLastEntryIsStatic()
+    {
+        var n = Bt.For<FakeClock>();
+        var captured = 0;
+
+        LeafAction<FakeClock> capturing = (in FakeClock c) =>
+        {
+            captured++;
+            return TickResult.Success;
+        };
+        LeafAction<FakeClock> pure = static (in FakeClock _) => TickResult.Success;
+
+        Should.Throw<ArgumentException>(() => n.Do("bad", capturing + pure));
+    }
+
+    // GetFields does not return private fields declared on base types.
+    [Test]
+    public void MethodGroupOnAnObjectWithInheritedPrivateState_IsRejected()
+    {
+        var n = Bt.For<FakeClock>();
+
+        Should.Throw<ArgumentException>(() => n.Do("bad", new Service().Act));
+    }
+
     [Test]
     public void NonCapturingDelegates_AreAccepted()
     {

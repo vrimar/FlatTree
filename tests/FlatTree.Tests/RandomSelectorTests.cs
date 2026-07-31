@@ -5,6 +5,25 @@ public sealed class RandomSelectorTests
     private static MockNode[] MakeChildren(int count, TickResult status) =>
         Enumerable.Range(0, count).Select(_ => new MockNode { ReturnStatus = status }).ToArray();
 
+    private sealed class OrderRecordingLeaf : LeafNode<FakeClock>
+    {
+        private readonly int _index;
+        private readonly List<int> _order;
+
+        public OrderRecordingLeaf(int index, List<int> order)
+            : base($"leaf{index}")
+        {
+            _index = index;
+            _order = order;
+        }
+
+        protected override TickResult Update(Span<NodeState> s, in FakeClock ctx)
+        {
+            _order.Add(_index);
+            return TickResult.Failure;
+        }
+    }
+
     [Test]
     public void WhenAllChildrenFail_ReturnFailureAndVisitEachExactlyOnce()
     {
@@ -15,6 +34,36 @@ public sealed class RandomSelectorTests
         h.Tick().ShouldBe(TickResult.Failure);
 
         children.ShouldAllBe(c => c.UpdateCallCount == 1);
+    }
+
+    // Every other test here passes under an identity permutation, so nothing else would notice if
+    // the shuffle stopped shuffling and every agent picked the same branch first forever.
+    [Test]
+    public void AcrossSeeds_TheVisitOrderIsActuallyPermuted()
+    {
+        var firstVisited = new HashSet<int>();
+        var sawNonIdentityOrder = false;
+
+        for (var seed = 1; seed <= 40; seed++)
+        {
+            BtFactory<FakeClock> n = Bt.For<FakeClock>(new SeededRandomProvider(seed));
+            MockNode[] children = MakeChildren(6, TickResult.Failure);
+            var order = new List<int>();
+            var recorders = Enumerable
+                .Range(0, 6)
+                .Select(BtNode<FakeClock> (i) => new OrderRecordingLeaf(i, order))
+                .ToArray();
+            Harness h = new Harness(n, n.RandomSelector("RandomSelector", recorders));
+
+            h.Tick().ShouldBe(TickResult.Failure);
+
+            order.Count.ShouldBe(6);
+            firstVisited.Add(order[0]);
+            sawNonIdentityOrder |= !order.SequenceEqual(Enumerable.Range(0, 6));
+        }
+
+        sawNonIdentityOrder.ShouldBeTrue();
+        firstVisited.Count.ShouldBeGreaterThan(1);
     }
 
     [Test]

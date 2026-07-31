@@ -23,8 +23,11 @@ public sealed class Wait<TContext> : LeafNode<TContext>
     internal Wait(string name, TimeSpan duration)
         : base(name)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(duration, TimeSpan.Zero, nameof(duration));
-        _durationMs = (long)duration.TotalMilliseconds;
+        // Zero is a legitimate "succeed immediately"; a sub-millisecond value truncates to it.
+        _durationMs =
+            duration == TimeSpan.Zero
+                ? 0
+                : DurationGuard.ToMilliseconds(duration, nameof(duration));
     }
 
     /// <summary>The wait duration.</summary>
@@ -52,5 +55,6 @@ public sealed class Wait<TContext> : LeafNode<TContext>
     protected override void DoReset(Span<NodeState> s, in TContext ctx)
     {
         s[Id].Cursor &= ~StartedFlag;
+        s[Id].Stamp = 0;
     }
 }

@@ -15,8 +15,16 @@ public abstract class CompositeNode<TContext> : BtNode<TContext>
     /// </summary>
     public const int MaxShuffledChildren = 64;
 
-    /// <summary>The composite's children, in declaration order.</summary>
-    public BtNode<TContext>[] Children { get; }
+    // Derived composites tick this directly: an array local keeps the JIT's bounds-check elision,
+    // which indexing through the Children span in a hot loop would not.
+    private protected readonly BtNode<TContext>[] _children;
+
+    /// <summary>
+    /// The composite's children, in declaration order. Read-only, and the constructor copies the
+    /// array it is given, so a built tree cannot be reshaped through either the caller's array or
+    /// this property — which would otherwise give two nodes the same per-agent state slot.
+    /// </summary>
+    public ReadOnlySpan<BtNode<TContext>> Children => _children;
 
     protected CompositeNode(string name, BtNode<TContext>[] children)
         : base(name)
@@ -31,18 +39,19 @@ public abstract class CompositeNode<TContext> : BtNode<TContext>
             );
         }
 
+        // Copy, or the validation below only ever held for a snapshot the caller can still edit.
+        // Exactly typed, so a covariant argument (Derived[] as BtNode[]) cannot alias in either.
+        _children = new BtNode<TContext>[children.Length];
+
         for (int i = 0; i < children.Length; i++)
         {
-            if (children[i] is null)
-            {
-                throw new ArgumentException(
+            _children[i] =
+                children[i]
+                ?? throw new ArgumentException(
                     "Children cannot contain null elements.",
                     nameof(children)
                 );
-            }
         }
-
-        Children = children;
     }
 
     /// <summary>
@@ -51,11 +60,11 @@ public abstract class CompositeNode<TContext> : BtNode<TContext>
     /// </summary>
     protected void RequireShuffleableChildCount(string paramName)
     {
-        if (Children.Length > MaxShuffledChildren)
+        if (_children.Length > MaxShuffledChildren)
         {
             throw new ArgumentException(
                 $"A shuffled composite supports at most {MaxShuffledChildren} children "
-                    + $"(got {Children.Length}).",
+                    + $"(got {_children.Length}).",
                 paramName
             );
         }
@@ -63,7 +72,7 @@ public abstract class CompositeNode<TContext> : BtNode<TContext>
 
     protected void ResetChildren(Span<NodeState> s, in TContext ctx)
     {
-        var children = Children;
+        var children = _children;
         for (var i = 0; i < children.Length; i++)
         {
             children[i].Reset(s, in ctx);
@@ -79,7 +88,7 @@ public abstract class CompositeNode<TContext> : BtNode<TContext>
     protected TickResult TickSequential(Span<NodeState> s, in TContext ctx, TickResult continueOn)
     {
         ref var st = ref s[Id];
-        var children = Children;
+        var children = _children;
 
         do
         {
@@ -108,7 +117,7 @@ public abstract class CompositeNode<TContext> : BtNode<TContext>
     )
     {
         ref var st = ref s[Id];
-        var children = Children;
+        var children = _children;
         var n = children.Length;
 
         if (st.Stamp == 0)
@@ -142,7 +151,7 @@ public abstract class CompositeNode<TContext> : BtNode<TContext>
         ResetChildren(s, in ctx);
     }
 
-    protected internal override int ChildCount => Children.Length;
+    protected internal override int ChildCount => _children.Length;
 
-    protected internal override BtNode<TContext> GetChildForBuild(int index) => Children[index];
+    protected internal override BtNode<TContext> GetChildForBuild(int index) => _children[index];
 }

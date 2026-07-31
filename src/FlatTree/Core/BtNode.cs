@@ -41,7 +41,8 @@ public abstract class BtNode<TContext>
     }
 
     /// <summary>
-    /// The SINGLE writer of <c>s[Id].Status</c>. Runs <see cref="Update"/>, stores the
+    /// The only writer of <c>s[Id].Status</c> on the tick path (<see cref="Reset"/> is the other,
+    /// and only ever writes <see cref="NodeStatus.Fresh"/>). Runs <see cref="Update"/>, stores the
     /// resulting status, and fires <see cref="OnTerminate"/> when the node completes
     /// (returns a non-<see cref="TickResult.Running"/> status).
     /// </summary>
@@ -68,6 +69,8 @@ public abstract class BtNode<TContext>
     /// <remarks>
     /// The library's only abort notification: <see cref="DoReset"/> receives
     /// <paramref name="ctx"/> so a preempted node can release what it acquired.
+    /// The Fresh short-circuit assumes <c>Update</c> ran to completion; if one threw, recover with
+    /// <see cref="BehaviourTree{TContext}.ResetAll(Span{NodeState}, in TContext)"/> instead.
     /// </remarks>
     public void Reset(Span<NodeState> s, in TContext ctx)
     {
@@ -76,6 +79,12 @@ public abstract class BtNode<TContext>
             return;
         }
 
+        DoReset(s, in ctx);
+        s[Id].Status = NodeStatus.Fresh;
+    }
+
+    internal void ResetForRecovery(Span<NodeState> s, in TContext ctx)
+    {
         DoReset(s, in ctx);
         s[Id].Status = NodeStatus.Fresh;
     }
@@ -90,10 +99,21 @@ public abstract class BtNode<TContext>
     protected virtual void OnTerminate(Span<NodeState> s, TickResult status, in TContext ctx) { }
 
     /// <summary>
-    /// Performs reset side effects (recursive child reset, releasing what the node acquired).
-    /// May read <c>s[Id]</c>, which still holds the pre-reset status.
+    /// Performs reset side effects (releasing what the node acquired). May read <c>s[Id]</c>, which
+    /// still holds the pre-reset status. The default resets every child, so a custom node with
+    /// children stays consistent without overriding; an override that adds its own cleanup should
+    /// call <c>base.DoReset</c> unless it resets its children itself.
     /// </summary>
-    protected virtual void DoReset(Span<NodeState> s, in TContext ctx) { }
+    protected virtual void DoReset(Span<NodeState> s, in TContext ctx)
+    {
+        // Without this a custom composite that forgets to override leaves children non-Fresh under
+        // a Fresh parent, which Reset then short-circuits past forever.
+        var count = ChildCount;
+        for (var i = 0; i < count; i++)
+        {
+            GetChildForBuild(i).Reset(s, in ctx);
+        }
+    }
 
     // --- builder traversal (DFS pre-order Id assignment) ---
     // protected internal so external assemblies can author custom composites/decorators

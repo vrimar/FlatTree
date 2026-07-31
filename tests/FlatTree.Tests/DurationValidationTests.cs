@@ -59,8 +59,9 @@ public sealed class DurationValidationTests
     }
 
     // A sub-millisecond duration truncates to 0 ms, which reads as "already elapsed": Cooldown and
-    // RateLimiter would silently become no-ops and TimeLimit an unconditional Failure that never
-    // ticks its child. Reject it rather than shipping a node that does nothing.
+    // RateLimiter would silently become no-ops, TimeLimit an unconditional Failure that never ticks
+    // its child, and Wait a leaf that succeeds instantly on every tick. Reject it rather than
+    // shipping a node that does nothing. Wait still accepts an explicit zero.
     [Test]
     public void Cooldown_RejectsSubMillisecondDuration()
     {
@@ -78,6 +79,16 @@ public sealed class DurationValidationTests
 
         Should.Throw<ArgumentOutOfRangeException>(() =>
             n.RateLimiter("r", TimeSpan.FromMicroseconds(500), new MockNode())
+        );
+    }
+
+    [Test]
+    public void Wait_RejectsSubMillisecondDuration()
+    {
+        var n = Bt.For<FakeClock>();
+
+        Should.Throw<ArgumentOutOfRangeException>(() =>
+            n.Wait("w", TimeSpan.FromMicroseconds(500))
         );
     }
 

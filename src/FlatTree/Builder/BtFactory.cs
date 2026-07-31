@@ -198,6 +198,16 @@ public sealed class BtFactory<TContext>
         where TNode : BtNode<TContext>
     {
         ArgumentNullException.ThrowIfNull(node);
+
+        // Build is what enforces the marker, so setting it afterwards would silently protect nothing.
+        if (node.Id != -1)
+        {
+            throw new InvalidOperationException(
+                $"Node '{node.Name}' is already built into a tree. Mark it Uninterruptible before "
+                    + "Build, which is what rejects it beneath a node that preempts running children."
+            );
+        }
+
         node.Uninterruptible = true;
         return node;
     }
@@ -209,19 +219,23 @@ public sealed class BtFactory<TContext>
     {
         ArgumentNullException.ThrowIfNull(action, paramName);
 
+        // A multicast delegate reports only its LAST entry's Target, which would hide a capturing
+        // entry earlier in the invocation list.
+        if (action.GetInvocationList().Length > 1)
+        {
+            throw new ArgumentException(
+                "Leaf delegates must be a single delegate, not a multicast chain.",
+                paramName
+            );
+        }
+
         var target = action.Target;
         if (target is null)
         {
             return;
         }
 
-        var capturesState =
-            target
-                .GetType()
-                .GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                .Length > 0;
-
-        if (capturesState)
+        if (HasInstanceState(target.GetType()))
         {
             throw new ArgumentException(
                 "Leaf delegates must capture nothing (use a 'static' lambda or a method group). "
@@ -230,6 +244,27 @@ public sealed class BtFactory<TContext>
                 paramName
             );
         }
+    }
+
+    private static bool HasInstanceState(Type? type)
+    {
+        // Walk the hierarchy: GetFields does not return private fields declared on base types.
+        for (; type is not null && type != typeof(object); type = type.BaseType)
+        {
+            var declared = type.GetFields(
+                BindingFlags.Instance
+                    | BindingFlags.Public
+                    | BindingFlags.NonPublic
+                    | BindingFlags.DeclaredOnly
+            );
+
+            if (declared.Length > 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // --- build ---
@@ -267,6 +302,10 @@ public sealed class BtFactory<TContext>
         BtNode<TContext>? reactiveAncestor
     )
     {
+        // A node's children are validated at construction, but the caller may hold the array it
+        // passed in and null an element before Build.
+        ArgumentNullException.ThrowIfNull(node);
+
         if (node.Id != -1)
         {
             throw new InvalidOperationException(

@@ -216,6 +216,35 @@ public sealed class BehaviourTreePoolTests
         pool.Tick(second, clock).ShouldBe(TickResult.Success);
     }
 
+    private sealed class ThrowingCleanup : BtNode<FakeClock>
+    {
+        public ThrowingCleanup()
+            : base("ThrowingCleanup") { }
+
+        protected override TickResult Update(Span<NodeState> s, in FakeClock ctx) =>
+            TickResult.Running;
+
+        protected override void DoReset(Span<NodeState> s, in FakeClock ctx) =>
+            throw new InvalidTimeZoneException();
+    }
+
+    [Test]
+    public void ReturnReleasesTheSlotEvenWhenCleanupThrows()
+    {
+        var n = Bt.For<FakeClock>();
+        var tree = n.Build(new ThrowingCleanup());
+        var pool = new BehaviourTreePool<FakeClock>(tree, 1);
+        var clock = new FakeClock();
+
+        var slot = pool.Rent();
+        pool.Tick(slot, clock).ShouldBe(TickResult.Running);
+
+        Should.Throw<InvalidTimeZoneException>(() => pool.Return(slot, clock));
+
+        pool.Count.ShouldBe(0);
+        pool.Rent().ShouldBe(slot);
+    }
+
     [Test]
     public void SlotsAreRecycledAcrossManyRentReturnCycles()
     {
