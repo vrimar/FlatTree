@@ -3,18 +3,18 @@ namespace FlatTree.Bench;
 /// <summary>Representative trees for benchmarking. Leaf delegates are static (capture nothing).</summary>
 public static class BenchTrees
 {
-    private static TickResult Succeed(in BenchContext c) => TickResult.Success;
+    internal static TickResult Succeed(in BenchContext c) => TickResult.Success;
 
     private static TickResult Run(in BenchContext c) => TickResult.Running;
 
     private static TickResult Periodic(in BenchContext c) =>
         (c.NowMs / 100) % 2 == 0 ? TickResult.Success : TickResult.Running;
 
-    private static bool True(in BenchContext c) => true;
+    internal static bool True(in BenchContext c) => true;
 
     private static bool False(in BenchContext c) => false;
 
-    private static bool Periodic3(in BenchContext c) => (c.NowMs / 100) % 3 == 0;
+    internal static bool Periodic3(in BenchContext c) => (c.NowMs / 100) % 3 == 0;
 
     /// <summary>A tree containing every node type, for the allocation benchmark.</summary>
     public static BehaviourTree<BenchContext> EveryNodeType()
