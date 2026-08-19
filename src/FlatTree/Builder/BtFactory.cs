@@ -1,22 +1,21 @@
-using System.Reflection;
-
 namespace FlatTree;
 
 /// <summary>
 /// Per-context factory for authoring trees as nested factory calls. A composite takes its
 /// children as arguments, so nesting is expressed as real argument nesting (CSharpier-safe).
 /// Every node method has a named and a name-less overload; the name is for debugging/inspection
-/// only, so omit it where a label adds nothing. The injected <see cref="IRandomProvider"/> is
-/// captured once and handed to every random node; call sites carry no <c>&lt;TContext&gt;</c> noise.
+/// only, so omit it where a label adds nothing. The <see cref="RandomSource{TContext}"/> given to
+/// <see cref="Bt.For{TContext}(RandomSource{TContext})"/> is handed to every random node; call sites
+/// carry no <c>&lt;TContext&gt;</c> noise.
 /// </summary>
 public sealed class BtFactory<TContext>
     where TContext : IClock
 {
-    private readonly IRandomProvider _randomProvider;
+    private readonly RandomSource<TContext> _randomSource;
 
-    internal BtFactory(IRandomProvider randomProvider)
+    internal BtFactory(RandomSource<TContext> randomSource)
     {
-        _randomProvider = randomProvider;
+        _randomSource = randomSource;
     }
 
     // --- composites ---
@@ -52,18 +51,18 @@ public sealed class BtFactory<TContext>
     public RandomSelector<TContext> RandomSelector(
         string name,
         params BtNode<TContext>[] children
-    ) => new(name, children, _randomProvider);
+    ) => new(name, children, _randomSource);
 
     public RandomSelector<TContext> RandomSelector(params BtNode<TContext>[] children) =>
-        new(nameof(RandomSelector), children, _randomProvider);
+        new(nameof(RandomSelector), children, _randomSource);
 
     public RandomSequence<TContext> RandomSequence(
         string name,
         params BtNode<TContext>[] children
-    ) => new(name, children, _randomProvider);
+    ) => new(name, children, _randomSource);
 
     public RandomSequence<TContext> RandomSequence(params BtNode<TContext>[] children) =>
-        new(nameof(RandomSequence), children, _randomProvider);
+        new(nameof(RandomSequence), children, _randomSource);
 
     public SimpleParallel<TContext> SimpleParallel(
         string name,
@@ -115,78 +114,202 @@ public sealed class BtFactory<TContext>
     public Repeat<TContext> Repeat(int count, BtNode<TContext> child) =>
         new(nameof(Repeat), child, count);
 
+    public Retry<TContext> Retry(string name, int attempts, BtNode<TContext> child) =>
+        new(name, child, attempts);
+
+    public Retry<TContext> Retry(int attempts, BtNode<TContext> child) =>
+        new(nameof(Retry), child, attempts);
+
+    public Catch<TContext> Catch(
+        string name,
+        BtNode<TContext> child,
+        FailureHandler<TContext> handler
+    )
+    {
+        BtGuard.RequireNoCapture(handler, nameof(handler));
+        return new(name, child, handler);
+    }
+
+    public Catch<TContext> Catch(BtNode<TContext> child, FailureHandler<TContext> handler)
+    {
+        BtGuard.RequireNoCapture(handler, nameof(handler));
+        return new(nameof(Catch), child, handler);
+    }
+
+    public Catch<TContext, TState> Catch<TState>(
+        string name,
+        BtNode<TContext> child,
+        TState state,
+        FailureHandler<TContext, TState> handler
+    )
+    {
+        BtGuard.RequireNoCapture(handler, nameof(handler));
+        return new(name, child, state, handler);
+    }
+
+    public Catch<TContext, TState> Catch<TState>(
+        BtNode<TContext> child,
+        TState state,
+        FailureHandler<TContext, TState> handler
+    )
+    {
+        BtGuard.RequireNoCapture(handler, nameof(handler));
+        return new(nameof(Catch), child, state, handler);
+    }
+
+    public ForEach<TContext> ForEach(
+        string name,
+        CountOf<TContext> count,
+        BtNode<TContext> body,
+        IterationHook<TContext>? onIteration = null
+    )
+    {
+        RequireLoopDelegates(count, onIteration);
+        return new(name, body, count, onIteration);
+    }
+
+    public ForEach<TContext> ForEach(
+        CountOf<TContext> count,
+        BtNode<TContext> body,
+        IterationHook<TContext>? onIteration = null
+    )
+    {
+        RequireLoopDelegates(count, onIteration);
+        return new(nameof(ForEach), body, count, onIteration);
+    }
+
     public Forever<TContext> Forever(string name, BtNode<TContext> child) => new(name, child);
 
     public Forever<TContext> Forever(BtNode<TContext> child) => new(nameof(Forever), child);
 
-    public Cooldown<TContext> Cooldown(string name, TimeSpan duration, BtNode<TContext> child) =>
-        new(name, child, duration);
+    public Forever<TContext> Forever(
+        string name,
+        BtNode<TContext> child,
+        LeafPredicate<TContext> exitWhen
+    )
+    {
+        BtGuard.RequireNoCapture(exitWhen, nameof(exitWhen));
+        return new(name, child, exitWhen);
+    }
 
-    public Cooldown<TContext> Cooldown(TimeSpan duration, BtNode<TContext> child) =>
-        new(nameof(Cooldown), child, duration);
+    public Forever<TContext> Forever(BtNode<TContext> child, LeafPredicate<TContext> exitWhen)
+    {
+        BtGuard.RequireNoCapture(exitWhen, nameof(exitWhen));
+        return new(nameof(Forever), child, exitWhen);
+    }
+
+    public Cooldown<TContext> Cooldown(
+        string name,
+        TimeSpan duration,
+        BtNode<TContext> child,
+        ClockSelector<TContext>? clock = null
+    ) => new(name, child, duration, clock);
+
+    public Cooldown<TContext> Cooldown(
+        TimeSpan duration,
+        BtNode<TContext> child,
+        ClockSelector<TContext>? clock = null
+    ) => new(nameof(Cooldown), child, duration, clock);
 
     public RateLimiter<TContext> RateLimiter(
         string name,
         TimeSpan interval,
-        BtNode<TContext> child
-    ) => new(name, child, interval);
+        BtNode<TContext> child,
+        ClockSelector<TContext>? clock = null
+    ) => new(name, child, interval, clock);
 
-    public RateLimiter<TContext> RateLimiter(TimeSpan interval, BtNode<TContext> child) =>
-        new(nameof(RateLimiter), child, interval);
+    public RateLimiter<TContext> RateLimiter(
+        TimeSpan interval,
+        BtNode<TContext> child,
+        ClockSelector<TContext>? clock = null
+    ) => new(nameof(RateLimiter), child, interval, clock);
 
-    public TimeLimit<TContext> TimeLimit(string name, TimeSpan limit, BtNode<TContext> child) =>
-        new(name, child, limit);
+    public TimeLimit<TContext> TimeLimit(
+        string name,
+        TimeSpan limit,
+        BtNode<TContext> child,
+        ClockSelector<TContext>? clock = null
+    ) => new(name, child, limit, clock);
 
-    public TimeLimit<TContext> TimeLimit(TimeSpan limit, BtNode<TContext> child) =>
-        new(nameof(TimeLimit), child, limit);
+    public TimeLimit<TContext> TimeLimit(
+        TimeSpan limit,
+        BtNode<TContext> child,
+        ClockSelector<TContext>? clock = null
+    ) => new(nameof(TimeLimit), child, limit, clock);
 
     public Chance<TContext> Chance(string name, double probability, BtNode<TContext> child) =>
-        new(name, child, probability, _randomProvider);
+        new(name, child, probability, _randomSource);
 
     public Chance<TContext> Chance(double probability, BtNode<TContext> child) =>
-        new(nameof(Chance), child, probability, _randomProvider);
+        new(nameof(Chance), child, probability, _randomSource);
 
     // --- leaves ---
 
     public Do<TContext> Do(string name, LeafAction<TContext> action)
     {
-        RequireNoCapture(action, nameof(action));
+        BtGuard.RequireNoCapture(action, nameof(action));
         return new(name, action);
     }
 
     public Do<TContext> Do(LeafAction<TContext> action)
     {
-        RequireNoCapture(action, nameof(action));
+        BtGuard.RequireNoCapture(action, nameof(action));
         return new(nameof(Do), action);
     }
 
     public StatefulDo<TContext> Do(string name, StatefulAction<TContext> action)
     {
-        RequireNoCapture(action, nameof(action));
+        BtGuard.RequireNoCapture(action, nameof(action));
         return new(name, action);
     }
 
     public StatefulDo<TContext> Do(StatefulAction<TContext> action)
     {
-        RequireNoCapture(action, nameof(action));
+        BtGuard.RequireNoCapture(action, nameof(action));
         return new(nameof(Do), action);
     }
 
     public Condition<TContext> Condition(string name, LeafPredicate<TContext> predicate)
     {
-        RequireNoCapture(predicate, nameof(predicate));
+        BtGuard.RequireNoCapture(predicate, nameof(predicate));
         return new(name, predicate);
     }
 
     public Condition<TContext> Condition(LeafPredicate<TContext> predicate)
     {
-        RequireNoCapture(predicate, nameof(predicate));
+        BtGuard.RequireNoCapture(predicate, nameof(predicate));
         return new(nameof(Condition), predicate);
     }
 
-    public Wait<TContext> Wait(string name, TimeSpan duration) => new(name, duration);
+    public Wait<TContext> Wait(
+        string name,
+        TimeSpan duration,
+        ClockSelector<TContext>? clock = null
+    ) => new(name, duration, duration, clock, _randomSource);
 
-    public Wait<TContext> Wait(TimeSpan duration) => new(nameof(Wait), duration);
+    public Wait<TContext> Wait(TimeSpan duration, ClockSelector<TContext>? clock = null) =>
+        new(nameof(Wait), duration, duration, clock, _randomSource);
+
+    public Wait<TContext> Wait(
+        string name,
+        TimeSpan min,
+        TimeSpan max,
+        ClockSelector<TContext>? clock = null
+    ) => new(name, min, max, clock, _randomSource);
+
+    public Wait<TContext> Wait(TimeSpan min, TimeSpan max, ClockSelector<TContext>? clock = null) =>
+        new(nameof(Wait), min, max, clock, _randomSource);
+
+    public Wait<TContext> Wait(
+        string name,
+        DurationOf<TContext> duration,
+        ClockSelector<TContext>? clock = null
+    ) => new(name, duration, clock, _randomSource);
+
+    public Wait<TContext> Wait(
+        DurationOf<TContext> duration,
+        ClockSelector<TContext>? clock = null
+    ) => new(nameof(Wait), duration, clock, _randomSource);
 
     // --- markers ---
 
@@ -197,74 +320,54 @@ public sealed class BtFactory<TContext>
     public TNode Uninterruptible<TNode>(TNode node)
         where TNode : BtNode<TContext>
     {
-        ArgumentNullException.ThrowIfNull(node);
-
-        // Build is what enforces the marker, so setting it afterwards would silently protect nothing.
-        if (node.Id != -1)
-        {
-            throw new InvalidOperationException(
-                $"Node '{node.Name}' is already built into a tree. Mark it Uninterruptible before "
-                    + "Build, which is what rejects it beneath a node that preempts running children."
-            );
-        }
-
+        RequireUnbuilt(node, "Mark it Uninterruptible");
         node.Uninterruptible = true;
         return node;
     }
 
-    // A static method group has a null Target; a non-capturing lambda is cached on a compiler
-    // singleton with no instance fields; a capturing closure's display class has one instance
-    // field per captured variable. Build-time only — never on the tick path.
-    private static void RequireNoCapture(Delegate action, string paramName)
+    /// <summary>
+    /// Labels <paramref name="node"/> with <paramref name="tag"/> and returns it, so it applies
+    /// inline while authoring. Read the nodes back with
+    /// <see cref="BehaviourTree{TContext}.NodesWith"/>.
+    /// </summary>
+    public TNode Tagged<TNode>(TNode node, int tag)
+        where TNode : BtNode<TContext>
     {
-        ArgumentNullException.ThrowIfNull(action, paramName);
+        RequireUnbuilt(node, "Tag it");
 
-        // A multicast delegate reports only its LAST entry's Target, which would hide a capturing
-        // entry earlier in the invocation list.
-        if (action.GetInvocationList().Length > 1)
+        if (tag == 0)
         {
-            throw new ArgumentException(
-                "Leaf delegates must be a single delegate, not a multicast chain.",
-                paramName
-            );
+            throw new ArgumentOutOfRangeException(nameof(tag), "Tag zero means untagged.");
         }
 
-        var target = action.Target;
-        if (target is null)
-        {
-            return;
-        }
+        node.Tag = tag;
+        return node;
+    }
 
-        if (HasInstanceState(target.GetType()))
+    private static void RequireLoopDelegates(
+        CountOf<TContext> count,
+        IterationHook<TContext>? onIteration
+    )
+    {
+        BtGuard.RequireNoCapture(count, nameof(count));
+
+        if (onIteration is not null)
         {
-            throw new ArgumentException(
-                "Leaf delegates must capture nothing (use a 'static' lambda or a method group). "
-                    + "One node instance is shared by every agent, so a capturing delegate leaks "
-                    + "that agent's state to all others.",
-                paramName
-            );
+            BtGuard.RequireNoCapture(onIteration, nameof(onIteration));
         }
     }
 
-    private static bool HasInstanceState(Type? type)
+    // Build is what reads these markers, so setting one afterwards would silently do nothing.
+    private static void RequireUnbuilt(BtNode<TContext> node, string what)
     {
-        // Walk the hierarchy: GetFields does not return private fields declared on base types.
-        for (; type is not null && type != typeof(object); type = type.BaseType)
+        ArgumentNullException.ThrowIfNull(node);
+
+        if (node.Id != -1)
         {
-            var declared = type.GetFields(
-                BindingFlags.Instance
-                    | BindingFlags.Public
-                    | BindingFlags.NonPublic
-                    | BindingFlags.DeclaredOnly
+            throw new InvalidOperationException(
+                $"Node '{node.Name}' is already built into a tree. {what} before Build."
             );
-
-            if (declared.Length > 0)
-            {
-                return true;
-            }
         }
-
-        return false;
     }
 
     // --- build ---
@@ -283,7 +386,12 @@ public sealed class BtFactory<TContext>
 
         // Reference equality, not Equals: a custom node may define value semantics, and two
         // distinct instances that compare equal are a legal tree.
-        Collect(root, nodes, new HashSet<BtNode<TContext>>(ReferenceEqualityComparer.Instance), null);
+        Collect(
+            root,
+            nodes,
+            new HashSet<BtNode<TContext>>(ReferenceEqualityComparer.Instance),
+            null
+        );
 
         // Assign only once the whole walk has passed validation: numbering as we descend would
         // leave a rejected graph half-numbered and permanently unbuildable.
@@ -334,8 +442,7 @@ public sealed class BtFactory<TContext>
 
         nodes.Add(node);
 
-        var childReactiveAncestor =
-            reactiveAncestor ?? (IsReactive(node) ? node : null);
+        var childReactiveAncestor = reactiveAncestor ?? (IsReactive(node) ? node : null);
 
         var childCount = node.ChildCount;
         for (var i = 0; i < childCount; i++)

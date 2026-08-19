@@ -81,10 +81,23 @@ public static class SampleTrees
                 "randseq",
                 n.Do("rq-do-1", AlwaysSucceedAction),
                 n.Do("rq-do-2", AlwaysSucceedAction)
+            ),
+            n.Sequence(
+                "loops",
+                n.Retry("retry", 2, n.Do("retry-do", PeriodicAction)),
+                n.Catch("catch", n.Do("catch-do", PeriodicAction), RecoverAction),
+                n.ForEach("foreach", TwoItems, n.Do("foreach-do", AlwaysSucceedAction), NoteItem),
+                n.Forever("laps", n.Do("lap-do", AlwaysSucceedAction), FalsePredicate)
             )
         );
 
-        nodeCount = 33;
+        nodeCount = 42;
         return n.Build(root);
     }
+
+    private static TickResult RecoverAction(in FakeClock c) => TickResult.Success;
+
+    private static int TwoItems(in FakeClock c) => 2;
+
+    private static void NoteItem(in FakeClock c, int index) { }
 }

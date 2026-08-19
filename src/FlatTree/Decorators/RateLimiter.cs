@@ -21,11 +21,18 @@ public sealed class RateLimiter<TContext> : DecoratorNode<TContext>
     private const int HasVerdictFlag = 0x4;
 
     private readonly long _intervalMs;
+    private readonly ClockSelector<TContext> _clock;
 
-    internal RateLimiter(string name, BtNode<TContext> child, TimeSpan interval)
+    internal RateLimiter(
+        string name,
+        BtNode<TContext> child,
+        TimeSpan interval,
+        ClockSelector<TContext>? clock
+    )
         : base(name, child)
     {
         _intervalMs = DurationGuard.ToMilliseconds(interval, nameof(interval));
+        _clock = ClockGuard.Resolve(clock);
     }
 
     /// <summary>The minimum interval between child evaluations.</summary>
@@ -34,7 +41,7 @@ public sealed class RateLimiter<TContext> : DecoratorNode<TContext>
     protected override TickResult Update(Span<NodeState> s, in TContext ctx)
     {
         ref var st = ref s[Id];
-        var now = ctx.NowMs;
+        var now = _clock(in ctx);
 
         if ((st.Cursor & HasVerdictFlag) != 0 && (now - st.Stamp) < _intervalMs)
         {

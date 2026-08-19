@@ -17,11 +17,18 @@ public sealed class Cooldown<TContext> : DecoratorNode<TContext>
     private const int OnCooldownFlag = 1;
 
     private readonly long _durationMs;
+    private readonly ClockSelector<TContext> _clock;
 
-    internal Cooldown(string name, BtNode<TContext> child, TimeSpan duration)
+    internal Cooldown(
+        string name,
+        BtNode<TContext> child,
+        TimeSpan duration,
+        ClockSelector<TContext>? clock
+    )
         : base(name, child)
     {
         _durationMs = DurationGuard.ToMilliseconds(duration, nameof(duration));
+        _clock = ClockGuard.Resolve(clock);
     }
 
     /// <summary>The cooldown duration.</summary>
@@ -30,7 +37,7 @@ public sealed class Cooldown<TContext> : DecoratorNode<TContext>
     protected override TickResult Update(Span<NodeState> s, in TContext ctx)
     {
         ref var st = ref s[Id];
-        var now = ctx.NowMs;
+        var now = _clock(in ctx);
 
         if ((st.Cursor & OnCooldownFlag) != 0)
         {

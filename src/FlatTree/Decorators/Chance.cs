@@ -18,13 +18,13 @@ public sealed class Chance<TContext> : DecoratorNode<TContext>
     private const int LatchedFlag = 1;
 
     private readonly double _probability;
-    private readonly IRandomProvider _randomProvider;
+    private readonly RandomSource<TContext> _randomSource;
 
     internal Chance(
         string name,
         BtNode<TContext> child,
         double probability,
-        IRandomProvider randomProvider
+        RandomSource<TContext> randomSource
     )
         : base(name, child)
     {
@@ -32,7 +32,7 @@ public sealed class Chance<TContext> : DecoratorNode<TContext>
         ArgumentOutOfRangeException.ThrowIfGreaterThan(probability, 1, nameof(probability));
 
         _probability = probability;
-        _randomProvider = randomProvider;
+        _randomSource = randomSource;
     }
 
     /// <summary>The probability of running the child, in <c>(0, 1]</c>.</summary>
@@ -42,7 +42,7 @@ public sealed class Chance<TContext> : DecoratorNode<TContext>
     {
         ref var st = ref s[Id];
 
-        if ((st.Cursor & LatchedFlag) == 0 && _randomProvider.NextDouble() >= _probability)
+        if ((st.Cursor & LatchedFlag) == 0 && _randomSource(in ctx).NextDouble() >= _probability)
         {
             return TickResult.Failure;
         }

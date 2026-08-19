@@ -29,6 +29,14 @@ public abstract class BtNode<TContext>
     public bool Uninterruptible { get; protected internal set; }
 
     /// <summary>
+    /// A caller-defined label, for finding a node by role rather than by matching its
+    /// <see cref="Name"/>. Zero means untagged; set it through
+    /// <see cref="BtFactory{TContext}.Tagged"/> and read the nodes back with
+    /// <see cref="BehaviourTree{TContext}.NodesWith"/>.
+    /// </summary>
+    public int Tag { get; protected internal set; }
+
+    /// <summary>
     /// Whether this node can <see cref="Reset"/> a child that is still Running. Override to
     /// <c>true</c> on a custom node that does, so <see cref="BtFactory{TContext}.Build"/> can reject
     /// an <see cref="Uninterruptible"/> node beneath it. Resetting a *completed* child doesn't count.

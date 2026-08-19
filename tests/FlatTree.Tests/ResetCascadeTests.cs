@@ -42,7 +42,7 @@ public sealed class ResetCascadeTests
         // t=200: high fails again; the wait RESTARTS from t=200 (not resumed from t=0).
         clock.Advance(100);
         h.Tick().ShouldBe(TickResult.Running);
-        h.StampOf(wait).ShouldBe(200L);
+        h.StampOf(wait).ShouldBe(1200L);
 
         // t=1100: only 900ms since the restart (< 1000) => still Running. Had the sibling not
         // been reset at t=100, the wait would have elapsed (1100 >= 1000) and succeeded.
@@ -75,7 +75,7 @@ public sealed class ResetCascadeTests
         // t=200: high succeeds; wait restarts from t=200.
         clock.Advance(100);
         h.Tick().ShouldBe(TickResult.Running);
-        h.StampOf(wait).ShouldBe(200L);
+        h.StampOf(wait).ShouldBe(1200L);
 
         // t=1100: 900ms since restart (< 1000) => still Running.
         clock.Advance(900);

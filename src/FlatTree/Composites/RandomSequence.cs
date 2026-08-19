@@ -8,21 +8,21 @@ namespace FlatTree;
 public sealed class RandomSequence<TContext> : CompositeNode<TContext>
     where TContext : IClock
 {
-    private readonly IRandomProvider _randomProvider;
+    private readonly RandomSource<TContext> _randomSource;
 
     internal RandomSequence(
         string name,
         BtNode<TContext>[] children,
-        IRandomProvider randomProvider
+        RandomSource<TContext> randomSource
     )
         : base(name, children)
     {
         RequireShuffleableChildCount(nameof(children));
-        _randomProvider = randomProvider;
+        _randomSource = randomSource;
     }
 
     protected override TickResult Update(Span<NodeState> s, in TContext ctx) =>
-        TickShuffled(s, in ctx, TickResult.Success, _randomProvider);
+        TickShuffled(s, in ctx, TickResult.Success, _randomSource(in ctx));
 
     // Clearing rather than re-drawing keeps this idempotent: a composite keeps its terminal status,
     // so an ancestor's reset cascade runs DoReset a second time.

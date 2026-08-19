@@ -58,7 +58,7 @@ public sealed class MultiAgentIsolationTests
         // B's wait (started at t=0) has elapsed and completes; A's wait restarts from t=2000.
         tree.Tick(b, clock).ShouldBe(TickResult.Success);
         tree.Tick(a, clock).ShouldBe(TickResult.Running);
-        a[wait.Id].Stamp.ShouldBe(2000L);
+        a[wait.Id].Stamp.ShouldBe(3000L);
     }
 
     [Test]

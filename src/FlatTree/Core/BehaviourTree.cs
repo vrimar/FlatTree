@@ -12,6 +12,8 @@ public sealed class BehaviourTree<TContext>
         "State array length must equal NodeCount; pass an array from this tree's NewState().";
 
     private readonly BtNode<TContext>[] _nodes;
+    private readonly BtNode<TContext>[] _tagged;
+    private readonly Dictionary<int, (int Start, int Length)>? _tagRanges;
 
     /// <summary>Total number of nodes; the length of a per-agent <c>NodeState[]</c>.</summary>
     public int NodeCount => _nodes.Length;
@@ -30,10 +32,63 @@ public sealed class BehaviourTree<TContext>
     {
         Root = root;
         _nodes = nodes;
+        (_tagged, _tagRanges) = GroupByTag(nodes);
     }
 
     /// <summary>Allocates a fresh per-agent state array (the only per-agent allocation).</summary>
     public NodeState[] NewState() => new NodeState[NodeCount];
+
+    /// <summary>
+    /// Allocates a per-agent array of <typeparamref name="T"/> parallel to <see cref="NewState"/>,
+    /// indexed by the same <see cref="BtNode{TContext}.Id"/> — per-node state beyond the
+    /// <c>Cursor</c>/<c>Stamp</c> scratch. Carry it on the context so nodes can reach it.
+    /// </summary>
+    public T[] NewSidecar<T>() => new T[NodeCount];
+
+    /// <summary>
+    /// Allocates a contiguous sidecar slab for <paramref name="capacity"/> agents, indexed by the
+    /// slot a <see cref="BehaviourTreePool{TContext}"/> of the same capacity hands out.
+    /// </summary>
+    public NodeSlab<T> NewSlab<T>(int capacity) => new(NodeCount, capacity);
+
+    /// <summary>
+    /// Every node carrying <paramref name="tag"/>, in <see cref="BtNode{TContext}.Id"/> order.
+    /// Empty when nothing carries it. Tag zero is "untagged" and always returns empty.
+    /// </summary>
+    public ReadOnlySpan<BtNode<TContext>> NodesWith(int tag) =>
+        _tagRanges is not null && _tagRanges.TryGetValue(tag, out var range)
+            ? _tagged.AsSpan(range.Start, range.Length)
+            : ReadOnlySpan<BtNode<TContext>>.Empty;
+
+    private static (BtNode<TContext>[] Tagged, Dictionary<int, (int, int)>? Ranges) GroupByTag(
+        BtNode<TContext>[] nodes
+    )
+    {
+        var tagged = nodes.Where(static node => node.Tag != 0).ToArray();
+
+        if (tagged.Length == 0)
+        {
+            return ([], null);
+        }
+
+        Array.Sort(tagged, static (a, b) => a.Tag != b.Tag ? a.Tag.CompareTo(b.Tag) : a.Id - b.Id);
+
+        var ranges = new Dictionary<int, (int, int)>();
+        var start = 0;
+
+        for (var i = 1; i <= tagged.Length; i++)
+        {
+            if (i < tagged.Length && tagged[i].Tag == tagged[start].Tag)
+            {
+                continue;
+            }
+
+            ranges[tagged[start].Tag] = (start, i - start);
+            start = i;
+        }
+
+        return (tagged, ranges);
+    }
 
     /// <summary>
     /// Ticks the tree against an agent's state. Zero allocation. The state may be a slice of a

@@ -8,14 +8,19 @@ namespace FlatTree;
 public sealed class TimeLimit<TContext> : DecoratorNode<TContext>
     where TContext : IClock
 {
-    private const int StartedFlag = 1;
-
     private readonly long _limitMs;
+    private readonly ClockSelector<TContext> _clock;
 
-    internal TimeLimit(string name, BtNode<TContext> child, TimeSpan limit)
+    internal TimeLimit(
+        string name,
+        BtNode<TContext> child,
+        TimeSpan limit,
+        ClockSelector<TContext>? clock
+    )
         : base(name, child)
     {
         _limitMs = DurationGuard.ToMilliseconds(limit, nameof(limit));
+        _clock = ClockGuard.Resolve(clock);
     }
 
     /// <summary>The time limit.</summary>
@@ -24,15 +29,11 @@ public sealed class TimeLimit<TContext> : DecoratorNode<TContext>
     protected override TickResult Update(Span<NodeState> s, in TContext ctx)
     {
         ref var st = ref s[Id];
-        var now = ctx.NowMs;
+        var now = _clock(in ctx);
 
-        if ((st.Cursor & StartedFlag) == 0)
-        {
-            st.Cursor |= StartedFlag;
-            st.Stamp = now;
-        }
+        st.TryBegin(now);
 
-        if ((now - st.Stamp) >= _limitMs)
+        if (st.Since(now) >= _limitMs)
         {
             return TickResult.Failure;
         }
@@ -42,14 +43,13 @@ public sealed class TimeLimit<TContext> : DecoratorNode<TContext>
 
     protected override void OnTerminate(Span<NodeState> s, TickResult status, in TContext ctx)
     {
-        s[Id].Cursor &= ~StartedFlag;
+        s[Id].ClearBegun();
         Child.Reset(s, in ctx);
     }
 
     protected override void DoReset(Span<NodeState> s, in TContext ctx)
     {
-        s[Id].Cursor &= ~StartedFlag;
-        s[Id].Stamp = 0;
+        s[Id].ClearScratch();
         base.DoReset(s, in ctx);
     }
 
