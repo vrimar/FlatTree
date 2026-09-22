@@ -7,8 +7,9 @@ namespace FlatTree;
 /// a multi-tick body resumes where it left off. <c>Cursor</c> is the item index.
 /// </summary>
 /// <remarks>
-/// The count is re-read every tick, so a collection that shrinks mid-loop ends early. Iterations
-/// that complete instantly run back-to-back within one tick.
+/// The count is re-read every tick, so a collection that shrinks mid-loop ends early — an
+/// iteration already in flight is ticked to completion first, and no new one starts after it.
+/// Iterations that complete instantly run back-to-back within one tick.
 /// </remarks>
 public sealed class ForEach<TContext> : DecoratorNode<TContext>
     where TContext : IClock
@@ -33,7 +34,7 @@ public sealed class ForEach<TContext> : DecoratorNode<TContext>
     {
         var total = _count(in ctx);
 
-        while (s[Id].Cursor < total)
+        while (s[Id].Cursor < total || s[Child.Id].Status == NodeStatus.Running)
         {
             _onIteration?.Invoke(in ctx, s[Id].Cursor);
 

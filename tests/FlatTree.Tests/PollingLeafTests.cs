@@ -46,6 +46,50 @@ public sealed class PollingLeafTests
         tree.Tick(state, new AgentContext(agent)).ShouldBe(TickResult.Failure);
 
         sut.TimeoutCount.ShouldBe(1);
+        sut.CancelCount.ShouldBe(1);
+        state[sut.Id].Cursor.ShouldBe(0);
+        state[sut.Id].Stamp.ShouldBe(0);
+    }
+
+    [Test]
+    public void ExpiringReleasesOnceWhenTheLeafReleasesInBothHooks()
+    {
+        Agent agent = new Agent();
+        BtFactory<AgentContext> n = Bt.For<AgentContext>();
+        AcquiringLeaf sut = new AcquiringLeaf();
+        BehaviourTree<AgentContext> tree = n.Build(sut);
+        NodeState[] state = tree.NewState();
+
+        tree.Tick(state, new AgentContext(agent)).ShouldBe(TickResult.Running);
+
+        agent.AdvanceSim(500);
+        tree.Tick(state, new AgentContext(agent)).ShouldBe(TickResult.Failure);
+
+        sut.ReleaseCount.ShouldBe(1);
+
+        tree.ResetAll(state, new AgentContext(agent));
+        sut.ReleaseCount.ShouldBe(1);
+    }
+
+    [Test]
+    public void ATimeoutThatKeepsPollingIsNotCancelled()
+    {
+        Agent agent = new Agent();
+        BtFactory<AgentContext> n = Bt.For<AgentContext>();
+        ProbeLeaf sut = new ProbeLeaf(TimeSpan.FromMilliseconds(500))
+        {
+            TimeoutStatus = TickResult.Running,
+        };
+        BehaviourTree<AgentContext> tree = n.Build(sut);
+        NodeState[] state = tree.NewState();
+
+        tree.Tick(state, new AgentContext(agent));
+
+        agent.AdvanceSim(500);
+        tree.Tick(state, new AgentContext(agent)).ShouldBe(TickResult.Running);
+
+        sut.TimeoutCount.ShouldBe(1);
+        sut.CancelCount.ShouldBe(0);
     }
 
     [Test]
@@ -133,6 +177,8 @@ public sealed class PollingLeafTests
 
         public TickResult PollStatus { get; set; } = TickResult.Running;
 
+        public TickResult TimeoutStatus { get; set; } = TickResult.Failure;
+
         public int BeginCount { get; private set; }
 
         public int PollCount { get; private set; }
@@ -156,10 +202,48 @@ public sealed class PollingLeafTests
         protected override TickResult OnTimeout(Span<NodeState> s, in AgentContext ctx)
         {
             TimeoutCount++;
-            return TickResult.Failure;
+            return TimeoutStatus;
         }
 
         protected override void Cancel(Span<NodeState> s, in AgentContext ctx) => CancelCount++;
+    }
+
+    private sealed class AcquiringLeaf : PollingLeaf<AgentContext>
+    {
+        private const int AcquiredFlag = 1;
+
+        public AcquiringLeaf()
+            : base("acquiring", TimeSpan.FromMilliseconds(500)) { }
+
+        public int ReleaseCount { get; private set; }
+
+        protected override TickResult Begin(Span<NodeState> s, in AgentContext ctx)
+        {
+            SetScratch(s, AcquiredFlag);
+            return TickResult.Success;
+        }
+
+        protected override TickResult Poll(Span<NodeState> s, in AgentContext ctx) =>
+            TickResult.Running;
+
+        protected override TickResult OnTimeout(Span<NodeState> s, in AgentContext ctx)
+        {
+            Release(s);
+            return TickResult.Failure;
+        }
+
+        protected override void Cancel(Span<NodeState> s, in AgentContext ctx) => Release(s);
+
+        private void Release(Span<NodeState> s)
+        {
+            if ((Scratch(s) & AcquiredFlag) == 0)
+            {
+                return;
+            }
+
+            SetScratch(s, Scratch(s) & ~AcquiredFlag);
+            ReleaseCount++;
+        }
     }
 
     private sealed class ScratchLeaf : PollingLeaf<AgentContext>

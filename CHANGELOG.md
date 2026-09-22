@@ -5,6 +5,23 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-09-21
+
+### Fixed
+
+- `PollingLeaf` calls `Cancel` when its deadline ends the leaf with the work still outstanding. It
+  previously only called it on a reset, so a leaf that timed out had its started flag cleared by
+  `OnTerminate` and never released what `Begin` acquired — neither a later `Reset` nor `ResetAll`
+  could reach it, since both test the flag. A subclass that already released on expiry, in
+  `OnTimeout` or in a Failure `OnTerminate`, now gets both calls; `Cancel` is documented as
+  idempotent, so a correct one is unaffected.
+- `ForEach` ticks an iteration that is already in flight to completion before a shrunken count ends
+  the loop. It previously returned Success the moment the count dropped to or below the cursor,
+  leaving the body `Running` with its scratch intact beneath a completed loop, so the next
+  activation resumed the body mid-flight instead of starting item 0 from zero — and a
+  `PollingLeaf` body was abandoned without a `Cancel`. No new iteration starts after the one in
+  flight.
+
 ## [0.3.0] - 2026-08-19
 
 ### Breaking

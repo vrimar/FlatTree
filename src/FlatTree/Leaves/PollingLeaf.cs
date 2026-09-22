@@ -5,8 +5,9 @@ namespace FlatTree;
 /// the activating tick, <see cref="Poll"/> on that tick and every tick after, and
 /// <see cref="OnTimeout"/> once the optional deadline passes. The base owns the started flag
 /// (<c>Cursor</c> bit 0) and the start timestamp (<c>Stamp</c>), clears them when the node
-/// completes, and calls <see cref="Cancel"/> when a started node is reset — the only notice a
-/// preempted node gets that its outstanding work is being abandoned.
+/// completes, and calls <see cref="Cancel"/> whenever a started node's work is abandoned — on a
+/// reset, and on a deadline that ends the leaf while the work is still outstanding. That call is
+/// the only notice the node gets.
 /// </summary>
 /// <remarks>
 /// <c>Cursor</c> bits 1-31 belong to the subclass, through <see cref="Scratch"/> /
@@ -49,7 +50,8 @@ public abstract class PollingLeaf<TContext> : LeafNode<TContext>
 
     /// <summary>
     /// Releases what <see cref="Begin"/> acquired, when a started node is reset rather than allowed
-    /// to finish. Must be idempotent.
+    /// to finish, or when the deadline ends it with the work still outstanding — so a subclass that
+    /// also releases in <see cref="OnTimeout"/> is called twice. Must be idempotent.
     /// </summary>
     protected virtual void Cancel(Span<NodeState> s, in TContext ctx) { }
 
@@ -90,9 +92,19 @@ public abstract class PollingLeaf<TContext> : LeafNode<TContext>
             return polled;
         }
 
-        return _timeoutMs > 0 && s[Id].Since(now) >= _timeoutMs
-            ? OnTimeout(s, in ctx)
-            : TickResult.Running;
+        if (_timeoutMs == 0 || s[Id].Since(now) < _timeoutMs)
+        {
+            return TickResult.Running;
+        }
+
+        var expired = OnTimeout(s, in ctx);
+
+        if (expired != TickResult.Running)
+        {
+            Cancel(s, in ctx);
+        }
+
+        return expired;
     }
 
     protected override void OnTerminate(Span<NodeState> s, TickResult status, in TContext ctx) =>

@@ -45,6 +45,28 @@ public sealed class ForEachTests
     }
 
     [Test]
+    public void AShrinkingCountLetsTheRunningIterationFinish()
+    {
+        Agent agent = new Agent { Count = 3 };
+        BtFactory<AgentContext> n = Bt.For<AgentContext>();
+        MockLeaf body = new MockLeaf { ReturnStatus = TickResult.Running };
+        ForEach<AgentContext> sut = n.ForEach(Count, body);
+        BehaviourTree<AgentContext> tree = n.Build(sut);
+        NodeState[] state = tree.NewState();
+
+        tree.Tick(state, new AgentContext(agent)).ShouldBe(TickResult.Running);
+
+        agent.Count = 0;
+        tree.Tick(state, new AgentContext(agent)).ShouldBe(TickResult.Running);
+
+        body.ReturnStatus = TickResult.Success;
+        tree.Tick(state, new AgentContext(agent)).ShouldBe(TickResult.Success);
+
+        state[body.Id].Status.ShouldBe(NodeStatus.Fresh);
+        state[sut.Id].Cursor.ShouldBe(0);
+    }
+
+    [Test]
     public void ACountOfZeroSucceedsWithoutTickingTheBody()
     {
         Agent agent = new Agent { Count = 0 };
