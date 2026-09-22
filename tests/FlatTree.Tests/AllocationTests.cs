@@ -87,6 +87,53 @@ public sealed class AllocationTests
     }
 
     [Test]
+    public void TickingTheStatefulLeavesWaitsAndLoopsThroughTickOrRecoverAllocatesNothing()
+    {
+        var n = Bt.For<FakeClock>();
+        var tree = n.Build(
+            n.Forever(
+                n.Sequence(
+                    "lap",
+                    n.Condition(0L, static (in FakeClock c, in long at) => c.NowMs >= at),
+                    n.Do(TickResult.Success, static (in FakeClock _, in TickResult r) => r),
+                    n.Act(static (in FakeClock _) => { }),
+                    n.OnComplete(n.Do(Succeed), static (in FakeClock _, TickResult r) => r),
+                    n.WaitUntil(Periodic, TimeSpan.FromMilliseconds(50), Recover),
+                    n.WaitUntil(1, PeriodicSite, TimeSpan.FromMilliseconds(50), RecoverSite),
+                    n.Repeat(3, n.Do(Succeed), Periodic),
+                    n.AlwaysSucceed(n.While(Periodic, n.Do(Succeed), 3))
+                )
+            )
+        );
+        NodeState[] state = tree.NewState();
+        FakeClock clock = new FakeClock();
+
+        for (int i = 0; i < WarmupTicks; i++)
+        {
+            tree.TickOrRecover(state, clock);
+            clock.Advance(10);
+        }
+
+        long before = GC.GetAllocatedBytesForCurrentThread();
+
+        for (int i = 0; i < MeasuredTicks; i++)
+        {
+            tree.TickOrRecover(state, clock);
+            clock.Advance(10);
+        }
+
+        (GC.GetAllocatedBytesForCurrentThread() - before).ShouldBe(0);
+    }
+
+    private static bool Periodic(in FakeClock c) => (c.NowMs / 100) % 2 == 0;
+
+    private static TickResult Recover(in FakeClock c) => TickResult.Success;
+
+    private static bool PeriodicSite(in FakeClock c, in int site) => Periodic(in c);
+
+    private static TickResult RecoverSite(in FakeClock c, in int site) => TickResult.Success;
+
+    [Test]
     public void TickingThroughThePoolAllocatesNothing()
     {
         BehaviourTree<FakeClock> tree = SampleTrees.EveryNodeType(out _);

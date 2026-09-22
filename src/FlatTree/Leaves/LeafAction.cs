@@ -14,3 +14,21 @@ public delegate TickResult LeafAction<TContext>(in TContext ctx)
 /// </summary>
 public delegate bool LeafPredicate<TContext>(in TContext ctx)
     where TContext : IClock;
+
+/// <summary>
+/// A <see cref="LeafAction{TContext}"/> that also receives per-site state authored on the node.
+/// Every agent shares it, so treat it as read-only.
+/// </summary>
+public delegate TickResult LeafAction<TContext, TState>(in TContext ctx, in TState state)
+    where TContext : IClock;
+
+/// <summary>
+/// A <see cref="LeafPredicate{TContext}"/> that also receives per-site state authored on the node.
+/// Every agent shares it, so treat it as read-only.
+/// </summary>
+public delegate bool LeafPredicate<TContext, TState>(in TContext ctx, in TState state)
+    where TContext : IClock;
+
+/// <summary>The effect for an <see cref="Act{TContext}"/> leaf. Must capture nothing.</summary>
+public delegate void LeafEffect<TContext>(in TContext ctx)
+    where TContext : IClock;

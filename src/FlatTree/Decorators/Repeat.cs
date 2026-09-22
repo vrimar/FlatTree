@@ -6,16 +6,27 @@ namespace FlatTree;
 /// Running is returned; on the final success, Success is returned. Failure/Running pass
 /// through. On completion or reset, the counter is cleared and the child is reset.
 /// </summary>
+/// <remarks>
+/// <c>exitWhen</c> is checked after each child success, once the child is reset as
+/// <see cref="Forever{TContext}"/> does, and ends it with Success when it holds.
+/// </remarks>
 public sealed class Repeat<TContext> : DecoratorNode<TContext>
     where TContext : IClock
 {
     private readonly int _count;
+    private readonly LeafPredicate<TContext>? _exitWhen;
 
-    internal Repeat(string name, BtNode<TContext> child, int count)
+    internal Repeat(
+        string name,
+        BtNode<TContext> child,
+        int count,
+        LeafPredicate<TContext>? exitWhen = null
+    )
         : base(name, child)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(count, 1, nameof(count));
         _count = count;
+        _exitWhen = exitWhen;
     }
 
     /// <summary>The required number of child successes.</summary>
@@ -33,7 +44,11 @@ public sealed class Repeat<TContext> : DecoratorNode<TContext>
             if (st.Cursor < _count)
             {
                 Child.Reset(s, in ctx);
-                return TickResult.Running;
+
+                if (_exitWhen is null || !_exitWhen(in ctx))
+                {
+                    return TickResult.Running;
+                }
             }
         }
 

@@ -31,6 +31,41 @@ public sealed class ApiErgonomicsTests
     }
 
     [Test]
+    public void LeafLambdas_NeedTheModifierButNotTheType()
+    {
+        var n = Bt.For<FakeClock>();
+        var clock = new FakeClock();
+        var h = new Harness(
+            n,
+            n.Sequence(
+                n.Condition(static (in c) => c.NowMs >= 0),
+                n.Condition(1L, static (in c, in at) => c.NowMs >= at),
+                n.Act(static (in c) => c.Advance(0)),
+                n.Do(static (in c) => TickResult.Success)
+            ),
+            clock
+        );
+
+        h.Tick().ShouldBe(TickResult.Failure);
+        clock.Advance(1);
+        h.Tick().ShouldBe(TickResult.Success);
+    }
+
+    [Test]
+    public void NamelessOverloadsOfTheNewNodes_DefaultToTheTypeName()
+    {
+        var n = Bt.For<FakeClock>();
+        var leaf = n.Do(static (in FakeClock _) => TickResult.Success);
+
+        n.Act(static (in FakeClock _) => { }).Name.ShouldBe("Act");
+        n.Condition(0, static (in FakeClock _, in int _) => true).Name.ShouldBe("Condition");
+        n.WaitUntil(static (in FakeClock _) => true, TimeSpan.Zero).Name.ShouldBe("WaitUntil");
+        n.OnComplete(leaf, static (in FakeClock _, TickResult r) => r)
+            .Name.ShouldBe("OnComplete");
+        n.While(static (in FakeClock _) => false, leaf, 1).Name.ShouldBe("While");
+    }
+
+    [Test]
     public void StatefulDo_PersistsProgressInCursorAcrossTicks()
     {
         var n = Bt.For<FakeClock>();

@@ -104,6 +104,40 @@ public sealed class BehaviourTree<TContext>
     public TickResult Tick(NodeState[] s, in TContext ctx) => Tick(s.AsSpan(), in ctx);
 
     /// <summary>
+    /// Ticks, and on a throw runs <see cref="ResetAll(Span{NodeState}, in TContext)"/> before
+    /// rethrowing. A failing cleanup is thrown with the tick's exception as one AggregateException.
+    /// </summary>
+    public TickResult TickOrRecover(Span<NodeState> s, in TContext ctx)
+    {
+        RequireStateLength(s.Length);
+
+        try
+        {
+            return Root.Tick(s, in ctx);
+        }
+        catch (Exception tickFailure)
+        {
+            try
+            {
+                ResetAll(s, in ctx);
+            }
+            catch (AggregateException resetFailures)
+            {
+                throw new AggregateException(
+                    "The tick threw, and one or more nodes then failed to reset.",
+                    [tickFailure, .. resetFailures.InnerExceptions]
+                );
+            }
+
+            throw;
+        }
+    }
+
+    /// <summary>Ticks, and on a throw resets every node before rethrowing.</summary>
+    public TickResult TickOrRecover(NodeState[] s, in TContext ctx) =>
+        TickOrRecover(s.AsSpan(), in ctx);
+
+    /// <summary>
     /// Resets an agent's state back to fresh, giving every non-fresh node a chance to clean up
     /// against <paramref name="ctx"/>. Zero allocation.
     /// </summary>

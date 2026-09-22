@@ -11,7 +11,7 @@ namespace FlatTree;
 /// iteration already in flight is ticked to completion first, and no new one starts after it.
 /// Iterations that complete instantly run back-to-back within one tick.
 /// </remarks>
-public sealed class ForEach<TContext> : DecoratorNode<TContext>
+public sealed class ForEach<TContext> : LoopDecorator<TContext>
     where TContext : IClock
 {
     private readonly CountOf<TContext> _count;
@@ -23,40 +23,21 @@ public sealed class ForEach<TContext> : DecoratorNode<TContext>
         CountOf<TContext> count,
         IterationHook<TContext>? onIteration
     )
-        : base(name, child)
+        : base(name, child, int.MaxValue)
     {
         ArgumentNullException.ThrowIfNull(count);
         _count = count;
         _onIteration = onIteration;
     }
 
-    protected override TickResult Update(Span<NodeState> s, in TContext ctx)
-    {
-        var total = _count(in ctx);
+    private protected override int Snapshot(in TContext ctx) => _count(in ctx);
 
-        while (s[Id].Cursor < total || s[Child.Id].Status == NodeStatus.Running)
-        {
-            _onIteration?.Invoke(in ctx, s[Id].Cursor);
+    private protected override bool HasNext(
+        ReadOnlySpan<NodeState> s,
+        in TContext ctx,
+        int snapshot
+    ) => s[Id].Cursor < snapshot;
 
-            var childStatus = Child.Tick(s, in ctx);
-            if (childStatus != TickResult.Success)
-            {
-                return childStatus;
-            }
-
-            s[Id].Cursor++;
-            Child.Reset(s, in ctx);
-        }
-
-        return TickResult.Success;
-    }
-
-    protected override void OnTerminate(Span<NodeState> s, TickResult status, in TContext ctx) =>
-        s[Id].Cursor = 0;
-
-    protected override void DoReset(Span<NodeState> s, in TContext ctx)
-    {
-        s[Id].Cursor = 0;
-        base.DoReset(s, in ctx);
-    }
+    private protected override void BeforeIteration(ReadOnlySpan<NodeState> s, in TContext ctx) =>
+        _onIteration?.Invoke(in ctx, s[Id].Cursor);
 }

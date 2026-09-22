@@ -44,4 +44,29 @@ public sealed class DoTests
         clock.Advance(1000);
         h.Tick().ShouldBe(TickResult.Success);
     }
+
+    [Test]
+    public void TheActionReceivesTheAuthoredState()
+    {
+        BtFactory<FakeClock> n = Bt.For<FakeClock>();
+        Do<FakeClock, TickResult> sut = n.Do("scripted", TickResult.Running, Echo);
+        Harness h = new Harness(n, sut);
+
+        h.Tick().ShouldBe(TickResult.Running);
+        sut.State.ShouldBe(TickResult.Running);
+        sut.Name.ShouldBe("scripted");
+    }
+
+    [Test]
+    public void TheNamelessOverloadDefaultsTheName()
+    {
+        BtFactory<FakeClock> n = Bt.For<FakeClock>();
+        Do<FakeClock, TickResult> sut = n.Do(TickResult.Failure, Echo);
+        Harness h = new Harness(n, sut);
+
+        h.Tick().ShouldBe(TickResult.Failure);
+        sut.Name.ShouldBe("Do");
+    }
+
+    private static TickResult Echo(in FakeClock c, in TickResult scripted) => scripted;
 }

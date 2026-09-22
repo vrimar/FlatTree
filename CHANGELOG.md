@@ -5,6 +5,47 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-09-22
+
+### Breaking
+
+- `n.Condition(name, null)` no longer compiles: `null` is ambiguous between the predicate and the new
+  `state` overload. Cast it to `LeafPredicate<TContext>`.
+
+### Added
+
+- `Condition` and `Do` overloads taking a `state` the delegate receives by `in`, as `Catch` already
+  did. Per-site data such as an expected value otherwise needed a custom leaf, since a delegate that
+  closed over it is shared by every agent.
+- `WaitUntil(predicate, timeout, onTimeout)`: waits for a predicate, with a handler that decides
+  what a lapsed deadline reports; a `state` overload hands per-site data to both. `TimeLimit` over
+  `UntilSuccess` cannot tell a timeout from a failure, and costs three nodes. A zero timeout waits
+  forever, so it is rejected alongside a handler that could never run.
+- `OnComplete(child, handler)`: hands the child's outcome to a handler on either arm, for work that
+  must follow the child whether it succeeded or not. Completion only; abort cleanup stays in
+  `DoReset`.
+- `Act(effect)`: a leaf for a `void` effect that always succeeds. It is a separate name rather than
+  a `Do` overload, because a `bool`-returning lambda would bind to the void delegate and silently
+  succeed. A lambda whose value is a `TickResult` or `bool` does not compile against `Act`; a block
+  body discards it on purpose.
+- `BehaviourTree.TickOrRecover` and `BehaviourTreePool.TickOrRecover`: tick, and on a throw
+  `ResetAll` before rethrowing. When cleanup fails as well, both failures are thrown as one
+  `AggregateException`.
+- `Repeat(count, child, exitWhen)`: ends at the first child success the predicate holds at, checked
+  once the child is reset, as `Forever` does. A counted loop otherwise ignores a request to stop at
+  an iteration boundary.
+- `While(condition, body, maxIterationsPerTick)`: a loop checked between iterations. Instant
+  iterations run back-to-back within a tick, so the loop fails once one tick spends the budget with
+  the condition still true, rather than spin; iterations that span ticks are not capped.
+
+### Changed
+
+- `ForEach` derives from `LoopDecorator` and `Catch` from `OutcomeDecorator`, bases shared with
+  `While` and `OnComplete` that hold the loop and handler logic once. Like `WaitUntilLeaf` under
+  both `WaitUntil` leaves, they cannot be subclassed outside the library.
+- A `Catch` handler that returns anything but Success or Failure, `default` included, throws; only
+  Running was rejected before.
+
 ## [0.3.1] - 2026-09-21
 
 ### Fixed

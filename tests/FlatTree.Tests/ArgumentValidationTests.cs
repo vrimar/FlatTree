@@ -60,7 +60,55 @@ public sealed class ArgumentValidationTests
 
         Should.Throw<ArgumentNullException>(() => n.Do("d", (LeafAction<FakeClock>)null!));
         Should.Throw<ArgumentNullException>(() => n.Do("d", (StatefulAction<FakeClock>)null!));
-        Should.Throw<ArgumentNullException>(() => n.Condition("c", null!));
+        Should.Throw<ArgumentNullException>(() => n.Condition("c", (LeafPredicate<FakeClock>)null!));
+        Should.Throw<ArgumentNullException>(() =>
+            n.Do("d", 1, (LeafAction<FakeClock, int>)null!)
+        );
+        Should.Throw<ArgumentNullException>(() =>
+            n.Condition("c", 1, (LeafPredicate<FakeClock, int>)null!)
+        );
+        Should.Throw<ArgumentNullException>(() =>
+            n.WaitUntil("w", (LeafPredicate<FakeClock>)null!, TimeSpan.FromMilliseconds(10))
+        );
+        Should.Throw<ArgumentNullException>(() =>
+            n.WaitUntil("w", 1, (LeafPredicate<FakeClock, int>)null!, TimeSpan.FromMilliseconds(10))
+        );
+        Should.Throw<ArgumentNullException>(() =>
+            n.WaitUntil(
+                "w",
+                1,
+                static (in FakeClock _, in int _) => true,
+                TimeSpan.FromMilliseconds(10),
+                (FailureHandler<FakeClock, int>)null!
+            )
+        );
+    }
+
+    [Test]
+    public void Decorator_WithANullHandler_Throws()
+    {
+        var n = Bt.For<FakeClock>();
+
+        Should.Throw<ArgumentNullException>(() =>
+            n.OnComplete("o", n.Do("d", Succeed), (CompletionHandler<FakeClock>)null!)
+        );
+        Should.Throw<ArgumentNullException>(() =>
+            n.OnComplete("o", n.Do("d", Succeed), 1, (CompletionHandler<FakeClock, int>)null!)
+        );
+        Should.Throw<ArgumentNullException>(() => n.While("w", null!, n.Do("d", Succeed), 1));
+        Should.Throw<ArgumentNullException>(() =>
+            n.Repeat("r", 2, n.Do("d", Succeed), null!)
+        );
+    }
+
+    [Test]
+    public void WaitUntil_WithASubMillisecondTimeout_Throws()
+    {
+        var n = Bt.For<FakeClock>();
+
+        Should.Throw<ArgumentOutOfRangeException>(() =>
+            n.WaitUntil("w", True, TimeSpan.FromTicks(1))
+        );
     }
 
     [Test]

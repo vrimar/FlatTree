@@ -27,3 +27,30 @@ public sealed class Do<TContext> : LeafNode<TContext>
         return _action(in ctx);
     }
 }
+
+/// <summary>
+/// A <see cref="Do{TContext}"/> whose action also receives per-site state authored on the node.
+/// Every agent shares it, so treat it as read-only.
+/// </summary>
+public sealed class Do<TContext, TState> : LeafNode<TContext>
+    where TContext : IClock
+{
+    private readonly TState _state;
+    private readonly LeafAction<TContext, TState> _action;
+
+    internal Do(string name, TState state, LeafAction<TContext, TState> action)
+        : base(name)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        _state = state;
+        _action = action;
+    }
+
+    /// <summary>The state handed to the action.</summary>
+    public TState State => _state;
+
+    protected override TickResult Update(Span<NodeState> s, in TContext ctx)
+    {
+        return _action(in ctx, in _state);
+    }
+}

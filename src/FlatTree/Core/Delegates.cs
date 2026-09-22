@@ -27,8 +27,9 @@ public delegate void IterationHook<TContext>(in TContext ctx, int index)
     where TContext : IClock;
 
 /// <summary>
-/// Handles a child's Failure inside <see cref="Catch{TContext}"/> and says what the decorator
-/// reports in its place. Must return Success or Failure, and must capture nothing.
+/// Says what a node reports in place of a child's Failure in <see cref="Catch{TContext}"/>, or of a
+/// lapsed deadline in <see cref="WaitUntil{TContext}"/>. Must return Success or Failure, and must
+/// capture nothing.
 /// </summary>
 public delegate TickResult FailureHandler<TContext>(in TContext ctx)
     where TContext : IClock;
@@ -38,6 +39,24 @@ public delegate TickResult FailureHandler<TContext>(in TContext ctx)
 /// where per-site data belongs, since a delegate that closed over it is shared by every agent.
 /// </summary>
 public delegate TickResult FailureHandler<TContext, TState>(in TContext ctx, in TState state)
+    where TContext : IClock;
+
+/// <summary>
+/// Maps an <see cref="OnComplete{TContext}"/> child's outcome to the decorator's status. Must
+/// return Success or Failure, and must capture nothing.
+/// </summary>
+public delegate TickResult CompletionHandler<TContext>(in TContext ctx, TickResult outcome)
+    where TContext : IClock;
+
+/// <summary>
+/// A <see cref="CompletionHandler{TContext}"/> that also receives per-site state authored on the
+/// node. Every agent shares it, so treat it as read-only.
+/// </summary>
+public delegate TickResult CompletionHandler<TContext, TState>(
+    in TContext ctx,
+    in TState state,
+    TickResult outcome
+)
     where TContext : IClock;
 
 /// <summary>

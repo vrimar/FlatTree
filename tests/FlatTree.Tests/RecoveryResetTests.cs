@@ -46,6 +46,18 @@ public sealed class RecoveryResetTests
             ctx.Release($"{Name}:reset");
     }
 
+    private sealed class ThrowingResetLeaf : LeafNode<RecordingClock>
+    {
+        public ThrowingResetLeaf(string name)
+            : base(name) { }
+
+        protected override TickResult Update(Span<NodeState> s, in RecordingClock ctx) =>
+            TickResult.Running;
+
+        protected override void DoReset(Span<NodeState> s, in RecordingClock ctx) =>
+            throw new InvalidOperationException(Name);
+    }
+
     private static TickResult Succeed(in RecordingClock c) => TickResult.Success;
 
     private static TickResult Throw(in RecordingClock c) => throw new Boom();
@@ -244,6 +256,85 @@ public sealed class RecoveryResetTests
 
         clock.Released.ShouldBe(new[] { "trade-window:reset" });
         pool.Count.ShouldBe(0);
+    }
+
+    [Test]
+    public void TickOrRecover_ReturnsTheTickResultWhenNothingThrows()
+    {
+        var n = Bt.For<RecordingClock>();
+        var tree = n.Build(n.Sequence("root", new CleanupLeaf("held")));
+        var state = tree.NewState();
+        var clock = new RecordingClock();
+
+        tree.TickOrRecover(state, clock).ShouldBe(TickResult.Running);
+
+        clock.Released.ShouldBeEmpty();
+    }
+
+    [Test]
+    public void TickOrRecover_ResetsEveryNodeThenRethrowsTheOriginal()
+    {
+        var n = Bt.For<RecordingClock>();
+        var held = new CleanupLeaf("trade-window");
+        var root = n.SimpleParallel(
+            "root",
+            SimpleParallelPolicy.BothMustSucceed,
+            n.Sequence("work", held),
+            n.Do("boom", Throw)
+        );
+        var tree = n.Build(root);
+        var state = tree.NewState();
+        var clock = new RecordingClock();
+
+        Should.Throw<Boom>(() => tree.TickOrRecover(state, clock));
+
+        clock.Released.ShouldBe(new[] { "trade-window:reset" });
+        state.ShouldAllBe(slot => slot.Status == NodeStatus.Fresh);
+    }
+
+    [Test]
+    public void TickOrRecover_ThrowsTheTickAndResetFailuresTogether()
+    {
+        var n = Bt.For<RecordingClock>();
+        var tree = n.Build(
+            n.SimpleParallel(
+                "root",
+                SimpleParallelPolicy.BothMustSucceed,
+                new ThrowingResetLeaf("stuck"),
+                n.Do("boom", Throw)
+            )
+        );
+        var state = tree.NewState();
+        var clock = new RecordingClock();
+
+        var thrown = Should.Throw<AggregateException>(() => tree.TickOrRecover(state, clock));
+
+        thrown.InnerExceptions[0].ShouldBeOfType<Boom>();
+        thrown.InnerExceptions.Skip(1).ShouldNotBeEmpty();
+        thrown.InnerExceptions.Skip(1).ShouldAllBe(e => e.Message == "stuck");
+    }
+
+    [Test]
+    public void PoolTickOrRecover_CleansTheSlotSoItCanBeReturned()
+    {
+        var n = Bt.For<RecordingClock>();
+        var held = new CleanupLeaf("trade-window");
+        var tree = n.Build(
+            n.SimpleParallel(
+                "root",
+                SimpleParallelPolicy.BothMustSucceed,
+                n.Sequence("work", held),
+                n.Do("boom", Throw)
+            )
+        );
+        var pool = new BehaviourTreePool<RecordingClock>(tree, 1);
+        var clock = new RecordingClock();
+        var slot = pool.Rent();
+
+        Should.Throw<Boom>(() => pool.TickOrRecover(slot, clock));
+        pool.Return(slot, clock);
+
+        clock.Released.ShouldBe(new[] { "trade-window:reset" });
     }
 
     // Return's ordinary path must not invent a teardown for a branch the agent never entered.

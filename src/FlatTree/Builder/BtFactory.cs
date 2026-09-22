@@ -1,3 +1,5 @@
+using System.ComponentModel;
+
 namespace FlatTree;
 
 /// <summary>
@@ -11,6 +13,10 @@ namespace FlatTree;
 public sealed class BtFactory<TContext>
     where TContext : IClock
 {
+    private const string ActDiscardsResult =
+        "Act discards the delegate's result: use Do for a TickResult, Condition for a bool, or a "
+        + "block-bodied lambda to discard it on purpose.";
+
     private readonly RandomSource<TContext> _randomSource;
 
     internal BtFactory(RandomSource<TContext> randomSource)
@@ -114,6 +120,27 @@ public sealed class BtFactory<TContext>
     public Repeat<TContext> Repeat(int count, BtNode<TContext> child) =>
         new(nameof(Repeat), child, count);
 
+    public Repeat<TContext> Repeat(
+        string name,
+        int count,
+        BtNode<TContext> child,
+        LeafPredicate<TContext> exitWhen
+    )
+    {
+        BtGuard.RequireNoCapture(exitWhen, nameof(exitWhen));
+        return new(name, child, count, exitWhen);
+    }
+
+    public Repeat<TContext> Repeat(
+        int count,
+        BtNode<TContext> child,
+        LeafPredicate<TContext> exitWhen
+    )
+    {
+        BtGuard.RequireNoCapture(exitWhen, nameof(exitWhen));
+        return new(nameof(Repeat), child, count, exitWhen);
+    }
+
     public Retry<TContext> Retry(string name, int attempts, BtNode<TContext> child) =>
         new(name, child, attempts);
 
@@ -157,6 +184,46 @@ public sealed class BtFactory<TContext>
         return new(nameof(Catch), child, state, handler);
     }
 
+    public OnComplete<TContext> OnComplete(
+        string name,
+        BtNode<TContext> child,
+        CompletionHandler<TContext> handler
+    )
+    {
+        BtGuard.RequireNoCapture(handler, nameof(handler));
+        return new(name, child, handler);
+    }
+
+    public OnComplete<TContext> OnComplete(
+        BtNode<TContext> child,
+        CompletionHandler<TContext> handler
+    )
+    {
+        BtGuard.RequireNoCapture(handler, nameof(handler));
+        return new(nameof(OnComplete), child, handler);
+    }
+
+    public OnComplete<TContext, TState> OnComplete<TState>(
+        string name,
+        BtNode<TContext> child,
+        TState state,
+        CompletionHandler<TContext, TState> handler
+    )
+    {
+        BtGuard.RequireNoCapture(handler, nameof(handler));
+        return new(name, child, state, handler);
+    }
+
+    public OnComplete<TContext, TState> OnComplete<TState>(
+        BtNode<TContext> child,
+        TState state,
+        CompletionHandler<TContext, TState> handler
+    )
+    {
+        BtGuard.RequireNoCapture(handler, nameof(handler));
+        return new(nameof(OnComplete), child, state, handler);
+    }
+
     public ForEach<TContext> ForEach(
         string name,
         CountOf<TContext> count,
@@ -176,6 +243,27 @@ public sealed class BtFactory<TContext>
     {
         RequireLoopDelegates(count, onIteration);
         return new(nameof(ForEach), body, count, onIteration);
+    }
+
+    public While<TContext> While(
+        string name,
+        LeafPredicate<TContext> condition,
+        BtNode<TContext> body,
+        int maxIterationsPerTick
+    )
+    {
+        BtGuard.RequireNoCapture(condition, nameof(condition));
+        return new(name, condition, body, maxIterationsPerTick);
+    }
+
+    public While<TContext> While(
+        LeafPredicate<TContext> condition,
+        BtNode<TContext> body,
+        int maxIterationsPerTick
+    )
+    {
+        BtGuard.RequireNoCapture(condition, nameof(condition));
+        return new(nameof(While), condition, body, maxIterationsPerTick);
     }
 
     public Forever<TContext> Forever(string name, BtNode<TContext> child) => new(name, child);
@@ -269,6 +357,54 @@ public sealed class BtFactory<TContext>
         return new(nameof(Do), action);
     }
 
+    public Do<TContext, TState> Do<TState>(
+        string name,
+        TState state,
+        LeafAction<TContext, TState> action
+    )
+    {
+        BtGuard.RequireNoCapture(action, nameof(action));
+        return new(name, state, action);
+    }
+
+    public Do<TContext, TState> Do<TState>(TState state, LeafAction<TContext, TState> action)
+    {
+        BtGuard.RequireNoCapture(action, nameof(action));
+        return new(nameof(Do), state, action);
+    }
+
+    public Act<TContext> Act(string name, LeafEffect<TContext> effect)
+    {
+        BtGuard.RequireNoCapture(effect, nameof(effect));
+        return new(name, effect);
+    }
+
+    public Act<TContext> Act(LeafEffect<TContext> effect)
+    {
+        BtGuard.RequireNoCapture(effect, nameof(effect));
+        return new(nameof(Act), effect);
+    }
+
+    [Obsolete(ActDiscardsResult, error: true)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public Act<TContext> Act(string name, LeafAction<TContext> action) =>
+        throw new NotSupportedException(ActDiscardsResult);
+
+    [Obsolete(ActDiscardsResult, error: true)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public Act<TContext> Act(LeafAction<TContext> action) =>
+        throw new NotSupportedException(ActDiscardsResult);
+
+    [Obsolete(ActDiscardsResult, error: true)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public Act<TContext> Act(string name, LeafPredicate<TContext> predicate) =>
+        throw new NotSupportedException(ActDiscardsResult);
+
+    [Obsolete(ActDiscardsResult, error: true)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public Act<TContext> Act(LeafPredicate<TContext> predicate) =>
+        throw new NotSupportedException(ActDiscardsResult);
+
     public Condition<TContext> Condition(string name, LeafPredicate<TContext> predicate)
     {
         BtGuard.RequireNoCapture(predicate, nameof(predicate));
@@ -279,6 +415,25 @@ public sealed class BtFactory<TContext>
     {
         BtGuard.RequireNoCapture(predicate, nameof(predicate));
         return new(nameof(Condition), predicate);
+    }
+
+    public Condition<TContext, TState> Condition<TState>(
+        string name,
+        TState state,
+        LeafPredicate<TContext, TState> predicate
+    )
+    {
+        BtGuard.RequireNoCapture(predicate, nameof(predicate));
+        return new(name, state, predicate);
+    }
+
+    public Condition<TContext, TState> Condition<TState>(
+        TState state,
+        LeafPredicate<TContext, TState> predicate
+    )
+    {
+        BtGuard.RequireNoCapture(predicate, nameof(predicate));
+        return new(nameof(Condition), state, predicate);
     }
 
     public Wait<TContext> Wait(
@@ -310,6 +465,98 @@ public sealed class BtFactory<TContext>
         DurationOf<TContext> duration,
         ClockSelector<TContext>? clock = null
     ) => new(nameof(Wait), duration, clock, _randomSource);
+
+    public WaitUntil<TContext> WaitUntil(
+        string name,
+        LeafPredicate<TContext> predicate,
+        TimeSpan timeout,
+        ClockSelector<TContext>? clock = null
+    )
+    {
+        BtGuard.RequireNoCapture(predicate, nameof(predicate));
+        return new(name, predicate, timeout, null, clock);
+    }
+
+    public WaitUntil<TContext> WaitUntil(
+        LeafPredicate<TContext> predicate,
+        TimeSpan timeout,
+        ClockSelector<TContext>? clock = null
+    )
+    {
+        BtGuard.RequireNoCapture(predicate, nameof(predicate));
+        return new(nameof(WaitUntil), predicate, timeout, null, clock);
+    }
+
+    public WaitUntil<TContext> WaitUntil(
+        string name,
+        LeafPredicate<TContext> predicate,
+        TimeSpan timeout,
+        FailureHandler<TContext> onTimeout,
+        ClockSelector<TContext>? clock = null
+    )
+    {
+        RequireWaitDelegates(predicate, onTimeout);
+        return new(name, predicate, timeout, onTimeout, clock);
+    }
+
+    public WaitUntil<TContext> WaitUntil(
+        LeafPredicate<TContext> predicate,
+        TimeSpan timeout,
+        FailureHandler<TContext> onTimeout,
+        ClockSelector<TContext>? clock = null
+    )
+    {
+        RequireWaitDelegates(predicate, onTimeout);
+        return new(nameof(WaitUntil), predicate, timeout, onTimeout, clock);
+    }
+
+    public WaitUntil<TContext, TState> WaitUntil<TState>(
+        string name,
+        TState state,
+        LeafPredicate<TContext, TState> predicate,
+        TimeSpan timeout,
+        ClockSelector<TContext>? clock = null
+    )
+    {
+        BtGuard.RequireNoCapture(predicate, nameof(predicate));
+        return new(name, state, predicate, timeout, null, clock);
+    }
+
+    public WaitUntil<TContext, TState> WaitUntil<TState>(
+        TState state,
+        LeafPredicate<TContext, TState> predicate,
+        TimeSpan timeout,
+        ClockSelector<TContext>? clock = null
+    )
+    {
+        BtGuard.RequireNoCapture(predicate, nameof(predicate));
+        return new(nameof(WaitUntil), state, predicate, timeout, null, clock);
+    }
+
+    public WaitUntil<TContext, TState> WaitUntil<TState>(
+        string name,
+        TState state,
+        LeafPredicate<TContext, TState> predicate,
+        TimeSpan timeout,
+        FailureHandler<TContext, TState> onTimeout,
+        ClockSelector<TContext>? clock = null
+    )
+    {
+        RequireWaitDelegates(predicate, onTimeout);
+        return new(name, state, predicate, timeout, onTimeout, clock);
+    }
+
+    public WaitUntil<TContext, TState> WaitUntil<TState>(
+        TState state,
+        LeafPredicate<TContext, TState> predicate,
+        TimeSpan timeout,
+        FailureHandler<TContext, TState> onTimeout,
+        ClockSelector<TContext>? clock = null
+    )
+    {
+        RequireWaitDelegates(predicate, onTimeout);
+        return new(nameof(WaitUntil), state, predicate, timeout, onTimeout, clock);
+    }
 
     // --- markers ---
 
@@ -355,6 +602,12 @@ public sealed class BtFactory<TContext>
         {
             BtGuard.RequireNoCapture(onIteration, nameof(onIteration));
         }
+    }
+
+    private static void RequireWaitDelegates(Delegate predicate, Delegate onTimeout)
+    {
+        BtGuard.RequireNoCapture(predicate, nameof(predicate));
+        BtGuard.RequireNoCapture(onTimeout, nameof(onTimeout));
     }
 
     // Build is what reads these markers, so setting one afterwards would silently do nothing.

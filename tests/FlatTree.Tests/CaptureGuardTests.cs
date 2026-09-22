@@ -51,6 +51,61 @@ public sealed class CaptureGuardTests
         );
     }
 
+    [Test]
+    public void CapturingStateDelegates_AreRejected()
+    {
+        var n = Bt.For<FakeClock>();
+        var captured = 0;
+
+        Should.Throw<ArgumentException>(() =>
+            n.Do(
+                "bad",
+                1,
+                (in FakeClock c, in int state) =>
+                {
+                    captured += state;
+                    return TickResult.Success;
+                }
+            )
+        );
+        Should.Throw<ArgumentException>(() =>
+            n.Condition("bad", 1, (in FakeClock c, in int state) => captured > state)
+        );
+        Should.Throw<ArgumentException>(() =>
+            n.OnComplete(
+                "bad",
+                n.Do("child", AlwaysSucceed),
+                1,
+                (in FakeClock c, in int state, TickResult outcome) =>
+                {
+                    captured += state;
+                    return outcome;
+                }
+            )
+        );
+        Should.Throw<ArgumentException>(() =>
+            n.WaitUntil(
+                "bad",
+                1,
+                static (in FakeClock _, in int _) => false,
+                TimeSpan.FromMilliseconds(10),
+                (in FakeClock c, in int state) =>
+                {
+                    captured += state;
+                    return TickResult.Failure;
+                }
+            )
+        );
+        Should.Throw<ArgumentException>(() =>
+            n.WaitUntil(
+                "bad",
+                1,
+                (in FakeClock c, in int state) => captured > state,
+                TimeSpan.FromMilliseconds(10)
+            )
+        );
+    }
+
     private class StatefulBase
     {
         private int _calls;

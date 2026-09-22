@@ -9,49 +9,27 @@ namespace FlatTree;
 /// The handler must return Success or Failure: Running would claim work in flight over a child that
 /// has already completed.
 /// </remarks>
-public sealed class Catch<TContext> : DecoratorNode<TContext>
+public sealed class Catch<TContext> : OutcomeDecorator<TContext>
     where TContext : IClock
 {
     private readonly FailureHandler<TContext> _handler;
 
     internal Catch(string name, BtNode<TContext> child, FailureHandler<TContext> handler)
-        : base(name, child)
+        : base(name, child, failureOnly: true)
     {
         ArgumentNullException.ThrowIfNull(handler);
         _handler = handler;
     }
 
-    protected override TickResult Update(Span<NodeState> s, in TContext ctx)
-    {
-        var childStatus = Child.Tick(s, in ctx);
-
-        if (childStatus != TickResult.Failure)
-        {
-            return childStatus;
-        }
-
-        var handled = _handler(in ctx);
-
-        if (handled == TickResult.Running)
-        {
-            ThrowRunningVerdict();
-        }
-
-        return handled;
-    }
-
-    [DoesNotReturn]
-    private void ThrowRunningVerdict() =>
-        throw new InvalidOperationException(
-            $"The failure handler on '{Name}' returned Running; it must return Success or Failure."
-        );
+    private protected override TickResult Handle(in TContext ctx, TickResult outcome) =>
+        _handler(in ctx);
 }
 
 /// <summary>
 /// A <see cref="Catch{TContext}"/> whose handler also receives state authored on the node — the
 /// per-site data a non-capturing delegate cannot carry itself.
 /// </summary>
-public sealed class Catch<TContext, TState> : DecoratorNode<TContext>
+public sealed class Catch<TContext, TState> : OutcomeDecorator<TContext>
     where TContext : IClock
 {
     private readonly TState _state;
@@ -63,7 +41,7 @@ public sealed class Catch<TContext, TState> : DecoratorNode<TContext>
         TState state,
         FailureHandler<TContext, TState> handler
     )
-        : base(name, child)
+        : base(name, child, failureOnly: true)
     {
         ArgumentNullException.ThrowIfNull(handler);
         _state = state;
@@ -73,28 +51,6 @@ public sealed class Catch<TContext, TState> : DecoratorNode<TContext>
     /// <summary>The state handed to the handler.</summary>
     public TState State => _state;
 
-    protected override TickResult Update(Span<NodeState> s, in TContext ctx)
-    {
-        var childStatus = Child.Tick(s, in ctx);
-
-        if (childStatus != TickResult.Failure)
-        {
-            return childStatus;
-        }
-
-        var handled = _handler(in ctx, in _state);
-
-        if (handled == TickResult.Running)
-        {
-            ThrowRunningVerdict();
-        }
-
-        return handled;
-    }
-
-    [DoesNotReturn]
-    private void ThrowRunningVerdict() =>
-        throw new InvalidOperationException(
-            $"The failure handler on '{Name}' returned Running; it must return Success or Failure."
-        );
+    private protected override TickResult Handle(in TContext ctx, TickResult outcome) =>
+        _handler(in ctx, in _state);
 }

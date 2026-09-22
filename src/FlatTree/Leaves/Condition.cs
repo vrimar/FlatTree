@@ -27,3 +27,30 @@ public sealed class Condition<TContext> : LeafNode<TContext>
         return _predicate(in ctx) ? TickResult.Success : TickResult.Failure;
     }
 }
+
+/// <summary>
+/// A <see cref="Condition{TContext}"/> whose predicate also receives per-site state authored on the
+/// node. Every agent shares it, so treat it as read-only.
+/// </summary>
+public sealed class Condition<TContext, TState> : LeafNode<TContext>
+    where TContext : IClock
+{
+    private readonly TState _state;
+    private readonly LeafPredicate<TContext, TState> _predicate;
+
+    internal Condition(string name, TState state, LeafPredicate<TContext, TState> predicate)
+        : base(name)
+    {
+        ArgumentNullException.ThrowIfNull(predicate);
+        _state = state;
+        _predicate = predicate;
+    }
+
+    /// <summary>The state handed to the predicate.</summary>
+    public TState State => _state;
+
+    protected override TickResult Update(Span<NodeState> s, in TContext ctx)
+    {
+        return _predicate(in ctx, in _state) ? TickResult.Success : TickResult.Failure;
+    }
+}

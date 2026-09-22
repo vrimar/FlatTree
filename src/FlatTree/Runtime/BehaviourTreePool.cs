@@ -114,6 +114,14 @@ public sealed class BehaviourTreePool<TContext>
     /// <summary>Ticks the agent in <paramref name="slot"/>. Zero allocation.</summary>
     public TickResult Tick(int slot, in TContext ctx) => _tree.Tick(Slice(slot), in ctx);
 
+    /// <summary>
+    /// Ticks the agent in <paramref name="slot"/>, and on a throw runs
+    /// <see cref="ResetAll(int, in TContext)"/> before rethrowing. A failing cleanup is thrown with
+    /// the tick's exception as one AggregateException.
+    /// </summary>
+    public TickResult TickOrRecover(int slot, in TContext ctx) =>
+        _tree.TickOrRecover(Slice(slot), in ctx);
+
     /// <summary>Resets the agent in <paramref name="slot"/> back to fresh.</summary>
     public void Reset(int slot, in TContext ctx) => _tree.Reset(Slice(slot), in ctx);
 

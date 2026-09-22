@@ -67,26 +67,33 @@ Reusable subtrees are just methods returning `BtNode<Ctx>`.
 
 - **Names are optional.** Every node method has a name-less overload (`n.Selector(...)`);
   the name is for debugging/inspection only and defaults to the node type.
-- **Durations are `TimeSpan`** (`Wait`, `Cooldown`, `RateLimiter`, `TimeLimit`).
+- **Durations are `TimeSpan`** (`Wait`, `WaitUntil`, `Cooldown`, `RateLimiter`, `TimeLimit`).
+  A `WaitUntil` timeout of `TimeSpan.Zero` waits forever, so it takes no `onTimeout` handler.
 - **`Do`/`Condition` delegates return `TickResult`** (`Running`/`Success`/`Failure`) and `bool`
   respectively, and must capture nothing. They take the context by `in`, so a lambda has to spell
-  out the modifier and the type: `static (in Ctx c) => ...`. A `Do` overload taking
+  out the modifier: `static (in c) => ...`. A `Do` overload taking
   `(in Ctx, ref int cursor, ref long stamp)` exposes the node's per-agent scratch for
   multi-tick actions; that scratch is cleared on reset, so an aborted action restarts rather than
   resuming mid-flight.
+- **Per-site data goes in state, not a closure.** `Condition`, `Do`, `Catch`, `OnComplete` and
+  `WaitUntil` each take a `state` that the delegate receives by `in`:
+  `n.Condition("armed", Gate.Ready, static (in c, in gate) => c.Is(gate))`. Every agent shares that
+  state, like the node itself, so keep it immutable.
 - **Deterministic randomness:** pass `Bt.For<Ctx>(new SeededRandomProvider(seed))` to make
   `RandomSelector`/`RandomSequence` orderings and `Chance` rolls reproducible.
 - **Custom nodes:** subclass `BtNode<Ctx>`/`LeafNode<Ctx>`/`CompositeNode<Ctx>`/
   `DecoratorNode<Ctx>`; override the `protected` child-traversal hooks and your children are
-  wired up by `Build`.
+  wired up by `Build`. `PollingLeaf<Ctx>` is the base for a leaf that starts work once and polls
+  it to completion, with an optional deadline.
 
 ## Nodes
 
 - **Composites:** `Selector`, `Sequence`, `PrioritySelector`, `PrioritySequence`,
   `RandomSelector`, `RandomSequence`, `SimpleParallel` (runs up to 16 children in parallel).
 - **Decorators:** `Inverter`, `AlwaysSucceed`, `AlwaysFail`, `AutoReset`, `UntilSuccess`,
-  `UntilFailed`, `Repeat`, `Forever`, `Cooldown`, `RateLimiter`, `TimeLimit`, `Chance`.
-- **Leaves:** `Do`, `Condition`, `Wait`.
+  `UntilFailed`, `Repeat`, `Retry`, `Forever`, `While`, `ForEach`, `Catch`, `OnComplete`,
+  `Cooldown`, `RateLimiter`, `TimeLimit`, `Chance`.
+- **Leaves:** `Do`, `Act` (an effect that always succeeds), `Condition`, `Wait`, `WaitUntil`.
 
 ### Reactive vs resuming composites
 
@@ -154,6 +161,10 @@ instead of cascading:
 try { tree.Tick(state, ctx); }
 catch (Exception) { tree.ResetAll(state, ctx); }   // reaches the whole tree
 ```
+
+`tree.TickOrRecover(state, ctx)` (and `pool.TickOrRecover(slot, ctx)`) runs that `ResetAll` for you
+and rethrows the tick's exception. If a cleanup throws as well, the two arrive together as one
+`AggregateException`, the tick's exception first.
 
 It keeps state a node deliberately holds across a reset (see the table below). It differs from
 `Reset` in two ways: no ancestor can hide a dirty subtree from it, **and it calls `DoReset` on every
