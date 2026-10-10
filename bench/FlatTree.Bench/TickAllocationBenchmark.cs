@@ -4,7 +4,8 @@ namespace FlatTree.Bench;
 /// The allocation contract with consumers. Both trees allocate their agent state once in
 /// <see cref="Setup"/>, then tick. The <c>[MemoryDiagnoser]</c> "Allocated" column must read
 /// <b>0 B</b> for every case — the per-tick hot path is allocation-free, including the
-/// <c>RandomSelector</c> <c>stackalloc</c> shuffle, the reset cascade, and abort-time teardown.
+/// <c>RandomSelector</c> and <c>WeightedSelector</c> <c>stackalloc</c> orders, the reset cascade,
+/// and abort-time teardown.
 /// </summary>
 [MemoryDiagnoser]
 public class TickAllocationBenchmark

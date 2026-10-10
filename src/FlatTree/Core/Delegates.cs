@@ -61,7 +61,8 @@ public delegate TickResult CompletionHandler<TContext, TState>(
 
 /// <summary>
 /// Supplies the randomness a <see cref="Chance{TContext}"/>, <see cref="RandomSelector{TContext}"/>,
-/// <see cref="RandomSequence{TContext}"/> or jittered <see cref="Wait{TContext}"/> draws from.
+/// <see cref="RandomSequence{TContext}"/>, <see cref="WeightedSelector{TContext}"/> or jittered
+/// <see cref="Wait{TContext}"/> draws from.
 /// Sourcing it from the context is what gives each agent its own stream: a tree-wide provider is one
 /// advancing stream shared by every agent. Must capture nothing.
 /// </summary>

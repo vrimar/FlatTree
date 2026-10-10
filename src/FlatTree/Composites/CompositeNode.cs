@@ -9,9 +9,10 @@ public abstract class CompositeNode<TContext> : BtNode<TContext>
     where TContext : IClock
 {
     /// <summary>
-    /// Upper bound on children for shuffled traversal. <see cref="TickShuffled"/> holds its
-    /// <c>stackalloc</c> permutation live across the recursive child ticks, so nesting accumulates
-    /// stack; the bound keeps that from overflowing.
+    /// Upper bound on children for shuffled and weighted traversal. <see cref="TickShuffled"/> and
+    /// <see cref="WeightedSelector{TContext}"/> hold their <c>stackalloc</c> visit order live across
+    /// the recursive child ticks, so nesting accumulates stack; the bound keeps that from
+    /// overflowing.
     /// </summary>
     public const int MaxShuffledChildren = 64;
 
@@ -56,7 +57,8 @@ public abstract class CompositeNode<TContext> : BtNode<TContext>
 
     /// <summary>
     /// Enforces <see cref="MaxShuffledChildren"/>. Call from the constructor of a composite that
-    /// uses <see cref="TickShuffled"/>.
+    /// holds a <c>stackalloc</c> visit order across its child ticks, as <see cref="TickShuffled"/>
+    /// does.
     /// </summary>
     protected void RequireShuffleableChildCount(string paramName)
     {
@@ -116,27 +118,42 @@ public abstract class CompositeNode<TContext> : BtNode<TContext>
         IRandomProvider randomProvider
     )
     {
+        Span<int> permutation = stackalloc int[_children.Length];
+        SeededRng(s, randomProvider).FillShuffled(permutation);
+        return TickInOrder(s, in ctx, continueOn, permutation);
+    }
+
+    private protected DeterministicRng SeededRng(Span<NodeState> s, IRandomProvider randomProvider)
+    {
         ref var st = ref s[Id];
-        var children = _children;
-        var n = children.Length;
 
         if (st.Stamp == 0)
         {
             st.Stamp = DeterministicRng.DrawNonZeroSeed(randomProvider);
         }
 
-        Span<int> permutation = stackalloc int[n];
-        new DeterministicRng(st.Stamp).FillShuffled(permutation);
+        return new DeterministicRng(st.Stamp);
+    }
+
+    private protected TickResult TickInOrder(
+        Span<NodeState> s,
+        in TContext ctx,
+        TickResult continueOn,
+        ReadOnlySpan<int> order
+    )
+    {
+        ref var st = ref s[Id];
+        var children = _children;
 
         do
         {
-            var childStatus = children[permutation[st.Cursor]].Tick(s, in ctx);
+            var childStatus = children[order[st.Cursor]].Tick(s, in ctx);
 
             if (childStatus != continueOn)
             {
                 return childStatus;
             }
-        } while (++st.Cursor < n);
+        } while (++st.Cursor < order.Length);
 
         return continueOn;
     }

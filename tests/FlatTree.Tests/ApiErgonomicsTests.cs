@@ -10,7 +10,10 @@ public sealed class ApiErgonomicsTests
 
         var root = n.Selector(
             n.Do(static (in FakeClock _) => TickResult.Failure),
-            n.Cooldown(TimeSpan.FromMilliseconds(100), n.Do(static (in FakeClock _) => TickResult.Success))
+            n.Cooldown(
+                TimeSpan.FromMilliseconds(100),
+                n.Do(static (in FakeClock _) => TickResult.Success)
+            )
         );
         var tree = n.Build(root);
 
@@ -60,9 +63,9 @@ public sealed class ApiErgonomicsTests
         n.Act(static (in FakeClock _) => { }).Name.ShouldBe("Act");
         n.Condition(0, static (in FakeClock _, in int _) => true).Name.ShouldBe("Condition");
         n.WaitUntil(static (in FakeClock _) => true, TimeSpan.Zero).Name.ShouldBe("WaitUntil");
-        n.OnComplete(leaf, static (in FakeClock _, TickResult r) => r)
-            .Name.ShouldBe("OnComplete");
+        n.OnComplete(leaf, static (in FakeClock _, TickResult r) => r).Name.ShouldBe("OnComplete");
         n.While(static (in FakeClock _) => false, leaf, 1).Name.ShouldBe("While");
+        n.WeightedSelector((1, leaf)).Name.ShouldBe("WeightedSelector");
     }
 
     [Test]

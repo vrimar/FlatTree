@@ -30,7 +30,7 @@ state.
 |---|---|
 | per-archetype | 1 tree, built once at startup, shared by ALL agents of that type |
 | per-agent activation | 1 `NodeState[]` (`new NodeState[NodeCount]`, 16 B/node) |
-| per-tick | **0 bytes** (no LINQ / closures / enumerators / boxing on the hot path; `RandomSelector` shuffles via `stackalloc`) |
+| per-tick | **0 bytes** (no LINQ / closures / enumerators / boxing on the hot path; `RandomSelector` and `WeightedSelector` draw their order into `stackalloc`) |
 
 This holds because (a) the nested-factory node construction runs at **build time** (once
 per archetype), not per agent or per tick; and (b) leaf delegates **capture nothing**
@@ -80,7 +80,11 @@ Reusable subtrees are just methods returning `BtNode<Ctx>`.
   `n.Condition("armed", Gate.Ready, static (in c, in gate) => c.Is(gate))`. Every agent shares that
   state, like the node itself, so keep it immutable.
 - **Deterministic randomness:** pass `Bt.For<Ctx>(new SeededRandomProvider(seed))` to make
-  `RandomSelector`/`RandomSequence` orderings and `Chance` rolls reproducible.
+  `RandomSelector`/`RandomSequence`/`WeightedSelector` orderings and `Chance` rolls reproducible.
+- **Weighted picks:** `n.WeightedSelector((3, n.Do(Actions.Meteor)), (1, n.Do(Actions.Burn)))` tries
+  the meteor first three times as often as the burn; a child that fails falls through to the next
+  weighted draw among the rest. Weights are positive integers and the draw uses integer arithmetic
+  only, so a seed replays the same order on every platform.
 - **Custom nodes:** subclass `BtNode<Ctx>`/`LeafNode<Ctx>`/`CompositeNode<Ctx>`/
   `DecoratorNode<Ctx>`; override the `protected` child-traversal hooks and your children are
   wired up by `Build`. `PollingLeaf<Ctx>` is the base for a leaf that starts work once and polls
@@ -89,7 +93,8 @@ Reusable subtrees are just methods returning `BtNode<Ctx>`.
 ## Nodes
 
 - **Composites:** `Selector`, `Sequence`, `PrioritySelector`, `PrioritySequence`,
-  `RandomSelector`, `RandomSequence`, `SimpleParallel` (runs up to 16 children in parallel).
+  `RandomSelector`, `RandomSequence`, `WeightedSelector` (a `RandomSelector` with a weight per
+  child), `SimpleParallel` (runs up to 16 children in parallel).
 - **Decorators:** `Inverter`, `AlwaysSucceed`, `AlwaysFail`, `AutoReset`, `UntilSuccess`,
   `UntilFailed`, `Repeat`, `Retry`, `Forever`, `While`, `ForEach`, `Catch`, `OnComplete`,
   `Cooldown`, `RateLimiter`, `TimeLimit`, `Chance`.

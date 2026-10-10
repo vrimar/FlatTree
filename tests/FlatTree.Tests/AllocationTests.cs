@@ -14,6 +14,8 @@ public sealed class AllocationTests
 
     private static TickResult Run(in FakeClock c) => TickResult.Running;
 
+    private static TickResult Fail(in FakeClock c) => TickResult.Failure;
+
     private static TickResult Step(in FakeClock c, ref int cursor, ref long stamp)
     {
         cursor++;
@@ -63,7 +65,11 @@ public sealed class AllocationTests
                     n.Condition("gate", static (in FakeClock c) => (c.NowMs / 100) % 3 == 0),
                     n.Do("act", Run)
                 ),
-                n.Sequence("fallback", n.Wait("dwell", TimeSpan.FromMilliseconds(50)), n.Do("go", Succeed))
+                n.Sequence(
+                    "fallback",
+                    n.Wait("dwell", TimeSpan.FromMilliseconds(50)),
+                    n.Do("go", Succeed)
+                )
             )
         );
 
@@ -80,6 +86,22 @@ public sealed class AllocationTests
                 n.RandomSelector("pick", n.Do("a", Succeed), n.Do("b", Run), n.Do("c", Succeed)),
                 n.RandomSequence("all", n.Do("d", Succeed), n.Do("e", Succeed)),
                 n.Do("multi-tick", Step)
+            )
+        );
+
+        MeasureTickAllocation(tree).ShouldBe(0);
+    }
+
+    [Test]
+    public void TickingAWeightedSelectorThroughFallThroughResumeAndReseedAllocatesNothing()
+    {
+        var n = Bt.For<FakeClock>(new SeededRandomProvider(12345));
+        var tree = n.Build(
+            n.WeightedSelector(
+                "pick",
+                (3, n.Do("miss", Fail)),
+                (1, n.Do("multi-tick", Step)),
+                (2, n.Do("hit", Succeed))
             )
         );
 

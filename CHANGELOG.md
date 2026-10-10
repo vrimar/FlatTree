@@ -5,6 +5,17 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-10-09
+
+### Added
+
+- `WeightedSelector((weight, child), ...)`: a `RandomSelector` whose visit order is a weighted draw
+  without replacement from the per-agent seed, so a child weighted 3 is tried first three times as
+  often as one weighted 1 and a child that fails falls through to the next weighted draw. Repeating
+  a child under a `RandomSelector` cannot express a weight, since a node instance appears in a tree
+  once and a copy of a child that failed is drawn again. Weights are positive integers summing to at
+  most `int.MaxValue`; the draw is integer-only, so a seed replays the same order on every platform.
+
 ## [0.4.0] - 2026-09-22
 
 ### Breaking

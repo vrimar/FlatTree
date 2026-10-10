@@ -11,7 +11,9 @@ namespace FlatTree;
 /// Sentinel discipline: <c>Reset</c>/<c>NewState</c> zero a slot, so a zeroed
 /// <see cref="Stamp"/> is indistinguishable from a freshly reset value. Never use
 /// <c>Stamp == 0</c> to mean "not started" — use an explicit flag bit in <see cref="Cursor"/>
-/// as the discriminator and only read <see cref="Stamp"/> when that flag says it is valid.
+/// as the discriminator and only read <see cref="Stamp"/> when that flag says it is valid. The
+/// one exception is a value the node guarantees is never zero, as the shuffle and weighted-order
+/// seeds are: there zero can only mean "not yet drawn".
 /// </remarks>
 [StructLayout(LayoutKind.Auto)]
 public struct NodeState

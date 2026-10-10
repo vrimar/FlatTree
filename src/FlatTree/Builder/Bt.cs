@@ -10,7 +10,7 @@ public static class Bt
     /// <summary>
     /// Creates a factory for context type <typeparamref name="TContext"/>. The optional
     /// <paramref name="randomProvider"/> is injected once into every Chance/RandomSelector/
-    /// RandomSequence node and every jittered Wait; when omitted,
+    /// RandomSequence/WeightedSelector node and every jittered Wait; when omitted,
     /// <see cref="DefaultRandomProvider"/> is used. Pass a <see cref="SeededRandomProvider"/> for
     /// reproducible randomness, or the <see cref="RandomSource{TContext}"/> overload for a stream
     /// per agent.

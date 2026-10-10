@@ -2,10 +2,10 @@ namespace FlatTree;
 
 /// <summary>
 /// A tiny deterministic SplitMix64 PRNG, re-seeded from a stored seed each tick so that the
-/// SAME permutation is reproduced (used by <c>RandomSelector</c>/<c>RandomSequence</c> to
-/// replay a per-agent visitation order without storing the whole order). This is NOT an
-/// <see cref="IRandomProvider"/> — that interface is only used to DRAW the seed and for the
-/// <c>Random</c> decorator's roll.
+/// SAME permutation is reproduced (used by <c>RandomSelector</c>/<c>RandomSequence</c>/
+/// <c>WeightedSelector</c> to replay a per-agent visitation order without storing the whole
+/// order). This is NOT an <see cref="IRandomProvider"/> — that interface is only used to DRAW the
+/// seed and for the <c>Random</c> decorator's roll.
 /// </summary>
 internal struct DeterministicRng
 {
@@ -37,7 +37,7 @@ internal struct DeterministicRng
     public int Next(int maxExclusive)
     {
         Debug.Assert(maxExclusive > 0, "maxExclusive must be positive");
-        // Unbiased enough for shuffling small child sets; avoids modulo-by-zero.
+        // Modulo bias is at most maxExclusive / 2^64: below 2^-33 even for an int.MaxValue weight total.
         return (int)(NextUInt64() % (ulong)maxExclusive);
     }
 
@@ -79,6 +79,33 @@ internal struct DeterministicRng
             var value = permutation[k];
             permutation[k] = permutation[n];
             permutation[n] = value;
+        }
+    }
+
+    public void FillWeighted(ReadOnlySpan<int> weights, int totalWeight, Span<int> order)
+    {
+        Debug.Assert(weights.Length == order.Length, "one weight per position");
+
+        var n = order.Length;
+        for (var i = 0; i < n; i++)
+        {
+            order[i] = i;
+        }
+
+        // Integer-only on purpose: a seed must replay the same order on every platform.
+        var remaining = totalWeight;
+        for (var i = 0; i < n - 1; i++)
+        {
+            var r = Next(remaining);
+            var j = i;
+            while (r >= weights[order[j]])
+            {
+                r -= weights[order[j]];
+                j++;
+            }
+
+            (order[i], order[j]) = (order[j], order[i]);
+            remaining -= weights[order[i]];
         }
     }
 }

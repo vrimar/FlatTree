@@ -69,7 +69,8 @@ public static class BenchTrees
                 n.Chance("chance", 0.5, n.Do("chance-do", Succeed))
             ),
             n.RandomSelector("randsel", n.Do("rs-do-1", Run), n.Do("rs-do-2", Succeed)),
-            n.RandomSequence("randseq", n.Do("rq-do-1", Succeed), n.Do("rq-do-2", Succeed))
+            n.RandomSequence("randseq", n.Do("rq-do-1", Succeed), n.Do("rq-do-2", Succeed)),
+            n.WeightedSelector("weighted", (3, n.Do("ws-do-1", Run)), (1, n.Do("ws-do-2", Succeed)))
         );
 
         return n.Build(root);

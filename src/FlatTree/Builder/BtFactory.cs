@@ -70,6 +70,15 @@ public sealed class BtFactory<TContext>
     public RandomSequence<TContext> RandomSequence(params BtNode<TContext>[] children) =>
         new(nameof(RandomSequence), children, _randomSource);
 
+    public WeightedSelector<TContext> WeightedSelector(
+        string name,
+        params (int Weight, BtNode<TContext> Child)[] children
+    ) => new(name, children, _randomSource);
+
+    public WeightedSelector<TContext> WeightedSelector(
+        params (int Weight, BtNode<TContext> Child)[] children
+    ) => new(nameof(WeightedSelector), children, _randomSource);
+
     public SimpleParallel<TContext> SimpleParallel(
         string name,
         SimpleParallelPolicy policy,

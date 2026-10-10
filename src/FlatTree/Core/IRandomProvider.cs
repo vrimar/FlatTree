@@ -2,8 +2,9 @@ namespace FlatTree;
 
 /// <summary>
 /// Randomness source injected once into a tree at build time and handed to every
-/// <c>Random</c>, <c>RandomSelector</c>, and <c>RandomSequence</c> node. The shared tree
-/// carries no per-agent RNG; per-agent shuffle seeds live in <see cref="NodeState.Stamp"/>.
+/// <c>Random</c>, <c>RandomSelector</c>, <c>RandomSequence</c>, and <c>WeightedSelector</c> node.
+/// The shared tree carries no per-agent RNG; per-agent shuffle seeds live in
+/// <see cref="NodeState.Stamp"/>.
 /// </summary>
 public interface IRandomProvider
 {

@@ -3,8 +3,9 @@ namespace FlatTree;
 /// <summary>
 /// A deterministic, seedable <see cref="IRandomProvider"/> backed by SplitMix64. Inject it via
 /// <c>Bt.For&lt;Ctx&gt;(new SeededRandomProvider(seed))</c> to make a tree's randomness
-/// (RandomSelector/RandomSequence orderings and Chance rolls) fully reproducible for replay and
-/// testing. Allocation-free per call. Not thread-safe (a tree is single-threaded by design).
+/// (RandomSelector/RandomSequence/WeightedSelector orderings and Chance rolls) fully reproducible
+/// for replay and testing. Allocation-free per call. Not thread-safe (a tree is single-threaded by
+/// design).
 /// </summary>
 /// <remarks>
 /// One provider is shared by every tree and agent built from the same factory, and it is one

@@ -29,6 +29,9 @@ public sealed class ArgumentValidationTests
         Should.Throw<ArgumentException>(() =>
             n.RandomSequence("s", Array.Empty<BtNode<FakeClock>>())
         );
+        Should.Throw<ArgumentException>(() =>
+            n.WeightedSelector("s", Array.Empty<(int, BtNode<FakeClock>)>())
+        );
     }
 
     [Test]
@@ -60,10 +63,10 @@ public sealed class ArgumentValidationTests
 
         Should.Throw<ArgumentNullException>(() => n.Do("d", (LeafAction<FakeClock>)null!));
         Should.Throw<ArgumentNullException>(() => n.Do("d", (StatefulAction<FakeClock>)null!));
-        Should.Throw<ArgumentNullException>(() => n.Condition("c", (LeafPredicate<FakeClock>)null!));
         Should.Throw<ArgumentNullException>(() =>
-            n.Do("d", 1, (LeafAction<FakeClock, int>)null!)
+            n.Condition("c", (LeafPredicate<FakeClock>)null!)
         );
+        Should.Throw<ArgumentNullException>(() => n.Do("d", 1, (LeafAction<FakeClock, int>)null!));
         Should.Throw<ArgumentNullException>(() =>
             n.Condition("c", 1, (LeafPredicate<FakeClock, int>)null!)
         );
@@ -96,9 +99,7 @@ public sealed class ArgumentValidationTests
             n.OnComplete("o", n.Do("d", Succeed), 1, (CompletionHandler<FakeClock, int>)null!)
         );
         Should.Throw<ArgumentNullException>(() => n.While("w", null!, n.Do("d", Succeed), 1));
-        Should.Throw<ArgumentNullException>(() =>
-            n.Repeat("r", 2, n.Do("d", Succeed), null!)
-        );
+        Should.Throw<ArgumentNullException>(() => n.Repeat("r", 2, n.Do("d", Succeed), null!));
     }
 
     [Test]
@@ -176,6 +177,14 @@ public sealed class ArgumentValidationTests
             .ToArray();
 
         Should.Throw<ArgumentException>(() => m.RandomSequence("rq", tooManyAgain));
+
+        var w = Bt.For<FakeClock>();
+        (int, BtNode<FakeClock>)[] tooManyWeighted = Enumerable
+            .Range(0, CompositeNode<FakeClock>.MaxShuffledChildren + 1)
+            .Select(_ => (1, (BtNode<FakeClock>)w.Condition("c", True)))
+            .ToArray();
+
+        Should.Throw<ArgumentException>(() => w.WeightedSelector("ws", tooManyWeighted));
     }
 
     [Test]
@@ -190,6 +199,14 @@ public sealed class ArgumentValidationTests
         var h = new Harness(n, n.RandomSelector("rs", children));
 
         h.Tick().ShouldBe(TickResult.Success);
+
+        var w = Bt.For<FakeClock>();
+        (int, BtNode<FakeClock>)[] weighted = Enumerable
+            .Range(0, CompositeNode<FakeClock>.MaxShuffledChildren)
+            .Select(i => (i + 1, (BtNode<FakeClock>)w.Condition("c", True)))
+            .ToArray();
+
+        new Harness(w, w.WeightedSelector("ws", weighted)).Tick().ShouldBe(TickResult.Success);
     }
 
     // Evaluate treats anything that is not BothMustSucceed as OnlyOneMustSucceed, so an unmapped

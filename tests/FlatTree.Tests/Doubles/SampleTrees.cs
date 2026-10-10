@@ -82,6 +82,11 @@ public static class SampleTrees
                 n.Do("rq-do-1", AlwaysSucceedAction),
                 n.Do("rq-do-2", AlwaysSucceedAction)
             ),
+            n.WeightedSelector(
+                "weighted",
+                (3, n.Do("ws-do-1", AlwaysRunningAction)),
+                (1, n.Do("ws-do-2", AlwaysSucceedAction))
+            ),
             n.Sequence(
                 "loops",
                 n.Retry("retry", 2, n.Do("retry-do", PeriodicAction)),
@@ -91,7 +96,7 @@ public static class SampleTrees
             )
         );
 
-        nodeCount = 42;
+        nodeCount = 45;
         return n.Build(root);
     }
 
