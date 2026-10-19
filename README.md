@@ -94,7 +94,8 @@ Reusable subtrees are just methods returning `BtNode<Ctx>`.
 
 - **Composites:** `Selector`, `Sequence`, `PrioritySelector`, `PrioritySequence`,
   `RandomSelector`, `RandomSequence`, `WeightedSelector` (a `RandomSelector` with a weight per
-  child), `SimpleParallel` (runs up to 16 children in parallel).
+  child), `SimpleParallel` (runs up to 16 children in parallel), `If` / `ReactiveIf` (a real
+  if/then/else: a failing `then` never falls back to `else`).
 - **Decorators:** `Inverter`, `AlwaysSucceed`, `AlwaysFail`, `AutoReset`, `UntilSuccess`,
   `UntilFailed`, `Repeat`, `Retry`, `Forever`, `While`, `ForEach`, `Catch`, `OnComplete`,
   `Cooldown`, `RateLimiter`, `TimeLimit`, `Chance`.
@@ -108,6 +109,7 @@ This is the easiest thing to get wrong at authoring time:
 |---|---|
 | `Selector` / `Sequence` | resume at the stored `Cursor`. Earlier children are **not** re-ticked, so a higher-priority guard is **not** re-evaluated. |
 | `PrioritySelector` / `PrioritySequence` | re-tick from child 0 every tick, and recursively `Reset` every lower-priority child once a higher-priority one takes over. |
+| `If` / `ReactiveIf` | `If` reads its condition once and runs the branch it chose; `ReactiveIf` reads it every tick and resets the running branch when the answer changes. |
 
 Use a priority composite wherever a guard must be able to interrupt a running branch. Use the
 plain ones where a started branch should be allowed to finish.
@@ -215,6 +217,14 @@ pool.Return(slot);        // frees only — for agents that hold nothing
 - Single-threaded — no locks, no thread-safety.
 - No wall-clock — time comes only from the context (`IClock.NowMs`), which makes the tree
   deterministically testable.
+
+## Tracing
+
+`tree.Tracer = myTracer` attaches an `IBtTracer<TContext>` that hears every node's tick result and
+every reset of a node that had ticked — `Running` as the previous status means it was torn down
+mid-flight. The tree is shared, so one tracer sees every agent; tell them apart through the
+context. Unset, it costs one null check per node tick. `BtNode.Describe(state)` gives a readable
+account of a node's scratch for one agent, and `ToDebugString(state)` prints it.
 
 ## Layout
 

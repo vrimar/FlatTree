@@ -5,6 +5,22 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-10-19
+
+### Added
+
+- `If(condition, then, otherwise)`: runs the branch the condition picks on entry and finishes with
+  it. A failing `then` never falls back to `otherwise`, which a `Selector` over a guarded `Sequence`
+  does; with no `otherwise`, a failed condition is a Success that does nothing.
+- `ReactiveIf`: an `If` that reads its condition every tick and resets the running branch when the
+  answer changes. It preempts, so `Build` rejects an `Uninterruptible` node beneath it.
+- `BehaviourTree.Tracer` and `IBtTracer<TContext>`: a per-tree observer of every node's tick, with the
+  status it held going in and its result, and of every reset of a node that had ticked. Unset, it
+  costs one null check per node tick.
+- `BtNode.Describe(state)`: a readable account of one agent's scratch for a node. `Sequence`,
+  `Selector`, `If`, `ReactiveIf`, `Repeat` and `Wait` describe theirs; `ToDebugString(state)`
+  prints it in place of raw `cursor=`/`stamp=` values.
+
 ## [0.5.0] - 2026-10-09
 
 ### Added
