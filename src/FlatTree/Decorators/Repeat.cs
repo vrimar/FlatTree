@@ -29,6 +29,9 @@ public sealed class Repeat<TContext> : DecoratorNode<TContext>
         _exitWhen = exitWhen;
     }
 
+    public override string Describe(in NodeState state) =>
+        state.Cursor != 0 ? $"{state.Cursor} of {_count} done" : "";
+
     /// <summary>The required number of child successes.</summary>
     public int Count => _count;
 

@@ -88,14 +88,9 @@ public static class BehaviourTreeDebug
             var st = state[node.Id];
             sb.Append(" = ").Append(st.Status);
 
-            if (st.Cursor != 0)
+            if (node.Describe(in st) is { Length: > 0 } described)
             {
-                sb.Append(" cursor=").Append(st.Cursor);
-            }
-
-            if (st.Stamp != 0)
-            {
-                sb.Append(" stamp=").Append(st.Stamp);
+                sb.Append(' ').Append(described);
             }
         }
 

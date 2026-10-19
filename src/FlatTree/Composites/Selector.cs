@@ -20,4 +20,7 @@ public sealed class Selector<TContext> : CompositeNode<TContext>
         s[Id].Cursor = 0;
         base.DoReset(s, in ctx);
     }
+
+    public override string Describe(in NodeState state) =>
+        state.Status == NodeStatus.Running ? $"at child {state.Cursor}" : "";
 }

@@ -28,11 +28,22 @@ public sealed class BehaviourTree<TContext>
     /// </summary>
     public ReadOnlySpan<BtNode<TContext>> Nodes => _nodes;
 
+    /// <summary>
+    /// What observes this tree's nodes as they tick and reset; null, the default, traces nothing and
+    /// costs a null check per node tick. Shared by every agent ticking the tree.
+    /// </summary>
+    public IBtTracer<TContext>? Tracer { get; set; }
+
     internal BehaviourTree(BtNode<TContext> root, BtNode<TContext>[] nodes)
     {
         Root = root;
         _nodes = nodes;
         (_tagged, _tagRanges) = GroupByTag(nodes);
+
+        foreach (var node in nodes)
+        {
+            node.Owner = this;
+        }
     }
 
     /// <summary>Allocates a fresh per-agent state array (the only per-agent allocation).</summary>

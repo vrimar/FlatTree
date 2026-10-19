@@ -86,6 +86,9 @@ public sealed class Wait<TContext> : LeafNode<TContext>
 
     protected override void DoReset(Span<NodeState> s, in TContext ctx) => s[Id].ClearScratch();
 
+    public override string Describe(in NodeState state) =>
+        (state.Cursor & NodeScratch.BegunFlag) != 0 ? $"until {state.Stamp}ms" : "";
+
     private long Draw(in TContext ctx)
     {
         if (_durationOf is { } accessor)

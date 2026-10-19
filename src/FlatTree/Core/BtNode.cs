@@ -43,10 +43,27 @@ public abstract class BtNode<TContext>
     /// </summary>
     protected internal virtual bool PreemptsRunningChildren => false;
 
+    internal BehaviourTree<TContext>? Owner { get; set; }
+
     protected BtNode(string name)
     {
         Name = name;
     }
+
+    /// <summary>
+    /// A short, readable account of one agent's <paramref name="state"/> for this node, for debugging
+    /// and tooling: what its <c>Cursor</c> and <c>Stamp</c> mean here. Empty when there is nothing to
+    /// say. The default names any non-zero scratch; a node that packs its scratch overrides it.
+    /// Allocates, so keep it off the hot path.
+    /// </summary>
+    public virtual string Describe(in NodeState state) =>
+        (state.Cursor, state.Stamp) switch
+        {
+            (0, 0) => "",
+            (_, 0) => $"cursor={state.Cursor}",
+            (0, _) => $"stamp={state.Stamp}",
+            _ => $"cursor={state.Cursor} stamp={state.Stamp}",
+        };
 
     /// <summary>
     /// The only writer of <c>s[Id].Status</c> on the tick path (<see cref="Reset"/> is the other,
@@ -56,6 +73,7 @@ public abstract class BtNode<TContext>
     /// </summary>
     public TickResult Tick(Span<NodeState> s, in TContext ctx)
     {
+        var previous = s[Id].Status;
         var status = Update(s, in ctx);
 
         // TickResult values are aligned with NodeStatus, so this cast is free.
@@ -65,6 +83,8 @@ public abstract class BtNode<TContext>
         {
             OnTerminate(s, status, in ctx);
         }
+
+        Owner?.Tracer?.Ticked(this, previous, status, in ctx);
 
         return status;
     }
@@ -82,19 +102,27 @@ public abstract class BtNode<TContext>
     /// </remarks>
     public void Reset(Span<NodeState> s, in TContext ctx)
     {
-        if (s[Id].Status == NodeStatus.Fresh)
+        var previous = s[Id].Status;
+        if (previous == NodeStatus.Fresh)
         {
             return;
         }
 
         DoReset(s, in ctx);
         s[Id].Status = NodeStatus.Fresh;
+        Owner?.Tracer?.Reset(this, previous, in ctx);
     }
 
     internal void ResetForRecovery(Span<NodeState> s, in TContext ctx)
     {
+        var previous = s[Id].Status;
         DoReset(s, in ctx);
         s[Id].Status = NodeStatus.Fresh;
+
+        if (previous != NodeStatus.Fresh)
+        {
+            Owner?.Tracer?.Reset(this, previous, in ctx);
+        }
     }
 
     /// <summary>
