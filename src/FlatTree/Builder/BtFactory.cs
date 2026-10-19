@@ -38,6 +38,32 @@ public sealed class BtFactory<TContext>
     public Sequence<TContext> Sequence(params BtNode<TContext>[] children) =>
         new(nameof(Sequence), children);
 
+    public If<TContext> If(
+        string name,
+        BtNode<TContext> condition,
+        BtNode<TContext> then,
+        BtNode<TContext>? otherwise = null
+    ) => new(name, condition, then, otherwise);
+
+    public If<TContext> If(
+        BtNode<TContext> condition,
+        BtNode<TContext> then,
+        BtNode<TContext>? otherwise = null
+    ) => new(nameof(If), condition, then, otherwise);
+
+    public ReactiveIf<TContext> ReactiveIf(
+        string name,
+        BtNode<TContext> condition,
+        BtNode<TContext> then,
+        BtNode<TContext>? otherwise = null
+    ) => new(name, condition, then, otherwise);
+
+    public ReactiveIf<TContext> ReactiveIf(
+        BtNode<TContext> condition,
+        BtNode<TContext> then,
+        BtNode<TContext>? otherwise = null
+    ) => new(nameof(ReactiveIf), condition, then, otherwise);
+
     public PrioritySelector<TContext> PrioritySelector(
         string name,
         params BtNode<TContext>[] children
