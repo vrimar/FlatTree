@@ -24,11 +24,11 @@ jobs:
     outputs:
       prerelease: ${{ steps.ver.outputs.prerelease }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
 
@@ -55,7 +55,7 @@ jobs:
 
       - run: dotnet pack src/FlatTree/FlatTree.csproj -c Release --no-build -p:Version=${{ steps.ver.outputs.version }} -o artifacts
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: packages
           path: artifacts/
@@ -67,11 +67,11 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: packages
           path: artifacts
@@ -97,7 +97,7 @@ jobs:
     permissions:
       contents: write   # to create the GitHub Release
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: packages
           path: artifacts
